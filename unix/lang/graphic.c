@@ -16,6 +16,9 @@
 #ifndef YABASIC_INCLUDED
 #include "yabasic.h" /* all prototypes and structures */
 #endif
+#ifdef WINDOWS
+#include <mmsystem.h>
+#endif
 #ifdef UNIX
 #include <curses.h>
 #include <sys/stat.h>
@@ -46,11 +49,27 @@ readrgb(char *, int, unsigned short *, unsigned short *,
 static int change_font(char *); /* change font */
 static int rgb_to_pixel(int, int,
                         int); /* create a pixel value from rgb values */
+static void pixel_to_rgb(int *, int *, int *, int); /* create an rgb value */
+static void init_ps2_colours(void); /* initialise PS2 colour slots */
+static int get_buffer_number(void); /* get buffer number from stack */
+static void wait_frame(void);       /* wait roughly one video frame */
+static void setdisplaybuf(int);     /* make a draw buffer visible */
+static void sync_drawbuf_if_visible(void); /* update visible display buffer */
 
 #ifdef WINDOWS
+typedef struct {
+  double x, y;
+  double r, g, b;
+} win_gtriangle_vertex;
+
+#define GTRI_MAX_VERTICES 12
+
 static DWORD winthread(LPWORD); /* window thread */
 static void startdraw(int);     /* prepare for drawing */
 static void enddraw();          /* end of drawing */
+static int clip_gtriangle_polygon(win_gtriangle_vertex *, int,
+                                  win_gtriangle_vertex *);
+static int draw_gradient_polygon(HDC, win_gtriangle_vertex *, int);
 
 #endif
 /* ------------- global variables ---------------- */
@@ -74,6 +93,9 @@ static double psscale;       /* factor from window-pixels to ps-points */
 static int firsttext = TRUE; /* true until text has been printed */
 #endif
 int drawmode = 0; /* flag for drawing */
+static int drawbuf = 0; /* selected PS2-style draw buffer */
+static int dispbuf = 0; /* selected PS2-style display buffer */
+static int ps2rgb[4][3] = {{255, 255, 255}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
 #ifdef UNIX
 static XFontStruct *myfont = NULL; /* properties of default font */
 #else
@@ -122,8 +144,9 @@ static XSizeHints sizehints;               /* hints for window manager */
 WNDCLASS myclass; /* window class for my program */
 HANDLE this_instance;
 static HDC devcon;      /* device context for screen */
-static HDC bitcon;      /* device context backing bitmap */
-static HBITMAP backbit; /* backing bitmap */
+static HDC bitcon;      /* selected draw-buffer device context */
+static HDC bitcons[2];  /* device contexts backing draw buffers */
+static HBITMAP backbits[2]; /* backing bitmaps */
 char *my_class = "my_class";
 BOOL Commandline; /* true if launched from command line */
 HANDLE mainthread = INVALID_HANDLE_VALUE; /* handle to main thread */
@@ -138,7 +161,8 @@ HWND window; /* handle of my window */
 
 #ifdef UNIX
 /* variables for redraw coprocess */
-Pixmap backbit;
+Pixmap backbits[2];
+static Pixmap displaybit;
 int backpid = -1;  /* pid of process waiting for redraw events */
 Colormap colormap; /* colormap for this visual */
 XVisualInfo
@@ -243,16 +267,23 @@ void openwin(struct command *cmd) {
 
   calc_psscale();
 
-  /* create redraw pixmap */
+  /* create redraw pixmaps */
   XGetWindowAttributes(display, window, &attributes);
-  backbit =
+  backbits[0] =
       XCreatePixmap(display, window, winwidth, winheight, attributes.depth);
-  if (!backbit) {
+  backbits[1] =
+      XCreatePixmap(display, window, winwidth, winheight, attributes.depth);
+  displaybit =
+      XCreatePixmap(display, window, winwidth, winheight, attributes.depth);
+  if (!backbits[0] || !backbits[1] || !displaybit) {
     error(sERROR, "couldn't create backing pixmap");
     return;
   }
-  XFillRectangle(display, window, rgc, 0, 0, winwidth, winheight);
-  XFillRectangle(display, backbit, rgc, 0, 0, winwidth, winheight);
+  XFillRectangle(display, backbits[0], rgc, 0, 0, winwidth, winheight);
+  XFillRectangle(display, backbits[1], rgc, 0, 0, winwidth, winheight);
+  XFillRectangle(display, displaybit, rgc, 0, 0, winwidth, winheight);
+  XCopyArea(display, displaybit, window, gc, 0, 0, winwidth, winheight, 0, 0);
+  XFlush(display);
 
   /* create redraw coprocess */
   backpid = fork();
@@ -279,7 +310,7 @@ void openwin(struct command *cmd) {
         ry = event.xexpose.y;
         rw = event.xexpose.width;
         rh = event.xexpose.height;
-        patch = XGetImage(display, backbit, rx, ry, rw, rh, vals.plane_mask,
+        patch = XGetImage(display, displaybit, rx, ry, rw, rh, vals.plane_mask,
                           ZPixmap);
         if (patch) {
           XPutImage(display, window, gc, patch, 0, 0, rx, ry, rw, rh);
@@ -314,7 +345,111 @@ void openwin(struct command *cmd) {
 
 #endif
   first = FALSE;
+  drawbuf = 0;
+  dispbuf = 0;
+  init_ps2_colours();
   winopened = TRUE;
+}
+
+static void init_ps2_colours(void) {
+  pixel_to_rgb(&ps2rgb[0][0], &ps2rgb[0][1], &ps2rgb[0][2], backpixel);
+  pixel_to_rgb(&ps2rgb[1][0], &ps2rgb[1][1], &ps2rgb[1][2], forepixel);
+  ps2rgb[2][0] = ps2rgb[1][0];
+  ps2rgb[2][1] = ps2rgb[1][1];
+  ps2rgb[2][2] = ps2rgb[1][2];
+  ps2rgb[3][0] = ps2rgb[1][0];
+  ps2rgb[3][1] = ps2rgb[1][1];
+  ps2rgb[3][2] = ps2rgb[1][2];
+}
+
+static int get_buffer_number(void) {
+  int b;
+
+  b = (int)pop(stNUMBER)->value;
+  if (b != 0 && b != 1) {
+    sprintf(string, "buffer number must be 0 or 1, not %d", b);
+    error(sERROR, string);
+    return -1;
+  }
+  return b;
+}
+
+static void wait_frame(void) {
+#define PS2_FRAME_USEC 16667
+#ifdef UNIX
+  static int initialized = FALSE;
+  static long last_sec = 0;
+  static long last_usec = 0;
+  struct timeval tv;
+  struct timeval now;
+  long elapsed;
+  long wait_usec;
+
+  gettimeofday(&now, NULL);
+  if (!initialized) {
+    last_sec = now.tv_sec;
+    last_usec = now.tv_usec;
+    initialized = TRUE;
+    return;
+  }
+  elapsed =
+      (now.tv_sec - last_sec) * 1000000 + (now.tv_usec - last_usec);
+  if (elapsed < 0) {
+    elapsed = PS2_FRAME_USEC;
+  }
+  wait_usec = PS2_FRAME_USEC - elapsed;
+  if (wait_usec > 0) {
+    tv.tv_sec = wait_usec / 1000000;
+    tv.tv_usec = wait_usec % 1000000;
+    select(0, NULL, NULL, NULL, &tv);
+    gettimeofday(&now, NULL);
+  }
+  last_sec = now.tv_sec;
+  last_usec = now.tv_usec;
+#else
+  static int initialized = FALSE;
+  static DWORD last = 0;
+  DWORD now;
+  DWORD due;
+  DWORD wait_msec;
+
+  if (!initialized) {
+    timeBeginPeriod(1);
+    last = timeGetTime();
+    initialized = TRUE;
+    return;
+  }
+  now = timeGetTime();
+  due = last + (PS2_FRAME_USEC + 999) / 1000;
+  if ((LONG)(due - now) > 0) {
+    wait_msec = due - now;
+    if (wait_msec > 20) {
+      wait_msec = 20;
+    }
+    Sleep(wait_msec);
+    now = timeGetTime();
+  }
+  last = now;
+#endif
+#undef PS2_FRAME_USEC
+}
+
+static void setdisplaybuf(int b) {
+#ifdef UNIX
+  XCopyArea(display, backbits[b], displaybit, gc, 0, 0, winwidth, winheight, 0,
+            0);
+  XCopyArea(display, displaybit, window, gc, 0, 0, winwidth, winheight, 0, 0);
+  XFlush(display);
+#else
+  (void)b;
+  InvalidateRect(window, NULL, FALSE);
+#endif
+}
+
+static void sync_drawbuf_if_visible(void) {
+  if (drawbuf == dispbuf) {
+    setdisplaybuf(dispbuf);
+  }
 }
 
 #ifdef WINDOWS
@@ -335,7 +470,7 @@ LRESULT CALLBACK mywindowproc(HWND handle, unsigned msg, UINT wparam,
       }
       BitBlt(ps.hdc, ps.rcPaint.left, ps.rcPaint.top,
              ps.rcPaint.right - ps.rcPaint.left,
-             ps.rcPaint.bottom - ps.rcPaint.top, bitcon, ps.rcPaint.left,
+             ps.rcPaint.bottom - ps.rcPaint.top, bitcons[dispbuf], ps.rcPaint.left,
              ps.rcPaint.top, SRCCOPY);
       EndPaint(handle, &ps);
       ReleaseMutex(drawmutex);
@@ -574,21 +709,27 @@ static DWORD winthread(LPWORD par) {
   forebrush = CreateSolidBrush(forepixel);
   forepen = CreatePen(PS_SOLID, 0, forepixel);
 
-  /* create bitmap device context */
+  /* create bitmap device contexts */
   devcon = GetDC(window);
-  bitcon = CreateCompatibleDC(devcon);
   cr.left = cr.top = 0;
   cr.right = winwidth;
   cr.bottom = winheight;
-  backbit =
-      CreateCompatibleBitmap(devcon, cr.right - cr.left, cr.bottom - cr.top);
-  SelectObject(bitcon, backbit);
-  SelectClipRgn(bitcon, NULL);
-  IntersectClipRect(bitcon, 0, 0, winwidth, winheight);
-  FillRect(bitcon, &cr, backbrush);
+  {
+    int i;
 
-  SelectObject(bitcon, forebrush);
-  SelectObject(bitcon, forepen);
+    for (i = 0; i < 2; i++) {
+      bitcons[i] = CreateCompatibleDC(devcon);
+      backbits[i] =
+          CreateCompatibleBitmap(devcon, cr.right - cr.left, cr.bottom - cr.top);
+      SelectObject(bitcons[i], backbits[i]);
+      SelectClipRgn(bitcons[i], NULL);
+      IntersectClipRect(bitcons[i], 0, 0, winwidth, winheight);
+      FillRect(bitcons[i], &cr, backbrush);
+      SelectObject(bitcons[i], forebrush);
+      SelectObject(bitcons[i], forepen);
+    }
+  }
+  bitcon = bitcons[drawbuf];
   ReleaseDC(window, devcon);
 
   /* get and dispatch messages */
@@ -599,11 +740,16 @@ static DWORD winthread(LPWORD par) {
 
   /* delete all those objects */
   DestroyWindow(window);
-  DeleteObject(backbit);
+  {
+    int i;
+
+    for (i = 0; i < 2; i++) {
+      DeleteObject(backbits[i]);
+      DeleteDC(bitcons[i]);
+    }
+  }
   DeleteObject(backpen);
   DeleteObject(backbrush);
-  DeleteDC(devcon);
-  DeleteDC(bitcon);
 
   ExitThread(0);
   return 0;
@@ -614,7 +760,12 @@ static void startdraw(int clear) {
   RECT interior;
 
   WaitForSingleObject(drawmutex, INFINITE);
-  devcon = GetDC(window);
+  bitcon = bitcons[drawbuf];
+  if (drawbuf == dispbuf) {
+    devcon = GetDC(window);
+  } else {
+    devcon = bitcon;
+  }
   if (clear) {
     SelectObject(devcon, backpen);
     SelectObject(bitcon, backpen);
@@ -631,10 +782,12 @@ static void startdraw(int clear) {
     SetTextColor(bitcon, forepixel);
   }
 
-  GetClientRect(window, &interior);
-  SelectClipRgn(devcon, NULL);
-  IntersectClipRect(devcon, interior.left, interior.top, interior.right,
-                    interior.bottom);
+  if (drawbuf == dispbuf) {
+    GetClientRect(window, &interior);
+    SelectClipRgn(devcon, NULL);
+    IntersectClipRect(devcon, interior.left, interior.top, interior.right,
+                      interior.bottom);
+  }
   if (printer) {
     if (clear) {
       SelectObject(printer, revprinterpen);
@@ -645,7 +798,9 @@ static void startdraw(int clear) {
 }
 static void enddraw() {
   /* release drawing resources */
-  ReleaseDC(window, devcon);
+  if (drawbuf == dispbuf) {
+    ReleaseDC(window, devcon);
+  }
   ReleaseMutex(drawmutex);
 }
 char *getreg(char *name) {
@@ -1022,13 +1177,11 @@ void dot(struct command *cmd) {
   }
 #ifdef UNIX
   if (clear) {
-    XDrawPoint(display, window, rgc, x, y);
-    XDrawPoint(display, backbit, rgc, x, y);
+    XDrawPoint(display, backbits[drawbuf], rgc, x, y);
   } else {
-    XDrawPoint(display, window, gc, x, y);
-    XDrawPoint(display, backbit, gc, x, y);
+    XDrawPoint(display, backbits[drawbuf], gc, x, y);
   }
-  XFlush(display);
+  sync_drawbuf_if_visible();
   if (printerfile) {
     fprintf(printerfile, "%g %g (%c) DO\n", (x - 0.5) * psscale,
             (winheight - y + 0.5) * psscale, clear ? 'y' : 'n');
@@ -1036,7 +1189,9 @@ void dot(struct command *cmd) {
 #elif WINDOWS
   startdraw(clear);
   if (clear) {
-    SetPixelV(devcon, (int)x, (int)y, backpixel);
+    if (devcon != bitcon) {
+      SetPixelV(devcon, (int)x, (int)y, backpixel);
+    }
     SetPixelV(bitcon, (int)x, (int)y, backpixel);
     if (printer) {
       MoveToEx(printer, (int)(x * prnscale + prnoffx),
@@ -1045,7 +1200,9 @@ void dot(struct command *cmd) {
              (int)(y * prnscale + prnoffy));
     }
   } else {
-    SetPixelV(devcon, (int)x, (int)y, forepixel);
+    if (devcon != bitcon) {
+      SetPixelV(devcon, (int)x, (int)y, forepixel);
+    }
     SetPixelV(bitcon, (int)x, (int)y, forepixel);
     if (printer) {
       MoveToEx(printer, (int)(x * prnscale + prnoffx),
@@ -1131,13 +1288,11 @@ void line(struct command *cmd) {
 
 #ifdef UNIX
   if (clear) {
-    XDrawLine(display, window, rgc, x1, y1, x2, y2);
-    XDrawLine(display, backbit, rgc, x1, y1, x2, y2);
+    XDrawLine(display, backbits[drawbuf], rgc, x1, y1, x2, y2);
   } else {
-    XDrawLine(display, window, gc, x1, y1, x2, y2);
-    XDrawLine(display, backbit, gc, x1, y1, x2, y2);
+    XDrawLine(display, backbits[drawbuf], gc, x1, y1, x2, y2);
   }
-  XFlush(display);
+  sync_drawbuf_if_visible();
   if (printerfile) {
     fprintf(printerfile, "%g %g %g %g (%c) LI\n", x1 * psscale,
             (winheight - y1) * psscale, x2 * psscale,
@@ -1146,12 +1301,14 @@ void line(struct command *cmd) {
   fflush(printerfile);
 #elif WINDOWS
   startdraw(clear);
-  MoveToEx(devcon, (int)x1, (int)y1, NULL);
-  LineTo(devcon, (int)x2, (int)y2);
-  if (clear) {
-    SetPixelV(devcon, (int)x2, (int)y2, backpixel);
-  } else {
-    SetPixelV(devcon, (int)x2, (int)y2, forepixel);
+  if (devcon != bitcon) {
+    MoveToEx(devcon, (int)x1, (int)y1, NULL);
+    LineTo(devcon, (int)x2, (int)y2);
+    if (clear) {
+      SetPixelV(devcon, (int)x2, (int)y2, backpixel);
+    } else {
+      SetPixelV(devcon, (int)x2, (int)y2, forepixel);
+    }
   }
   MoveToEx(bitcon, (int)x1, (int)y1, NULL);
   LineTo(bitcon, (int)x2, (int)y2);
@@ -1210,8 +1367,11 @@ void change_colour(struct command *cmd) {
   }
 #ifdef UNIX
   pixel = rgb_to_pixel(r, g, b);
-  forepixel = pixel;
   if (cmd->type == cGCOLOUR || cmd->type == cGCOLOUR2) {
+    forepixel = pixel;
+    ps2rgb[1][0] = r;
+    ps2rgb[1][1] = g;
+    ps2rgb[1][2] = b;
     XSetForeground(display, gc, pixel);
     XSetBackground(display, gc, pixel);
     if (printerfile) {
@@ -1222,18 +1382,28 @@ void change_colour(struct command *cmd) {
       fflush(printerfile);
     }
   } else {
+    backpixel = pixel;
+    ps2rgb[0][0] = r;
+    ps2rgb[0][1] = g;
+    ps2rgb[0][2] = b;
     XSetForeground(display, rgc, pixel);
     XSetBackground(display, rgc, pixel);
   }
 #else /*  */
   if (cmd->type == cGCOLOUR || cmd->type == cGCOLOUR2) {
     forepixel = RGB(r, g, b);
+    ps2rgb[1][0] = r;
+    ps2rgb[1][1] = g;
+    ps2rgb[1][2] = b;
     DeleteObject(forebrush);
     forebrush = CreateSolidBrush(forepixel);
     DeleteObject(forepen);
     forepen = CreatePen(PS_SOLID, 0, forepixel);
   } else {
     backpixel = RGB(r, g, b);
+    ps2rgb[0][0] = r;
+    ps2rgb[0][1] = g;
+    ps2rgb[0][2] = b;
     DeleteObject(backbrush);
     backbrush = CreateSolidBrush(backpixel);
     DeleteObject(backpen);
@@ -1241,6 +1411,98 @@ void change_colour(struct command *cmd) {
   }
 
 #endif
+}
+
+void setrgb(struct command *cmd) {
+  /* set PS2-compatible colour slot */
+  int slot, r, g, b;
+
+  b = (int)pop(stNUMBER)->value;
+  g = (int)pop(stNUMBER)->value;
+  r = (int)pop(stNUMBER)->value;
+  slot = (int)pop(stNUMBER)->value;
+  if (!winopened) {
+    error(sERROR, "Got no window to draw");
+    return;
+  }
+  if (slot < 0 || slot > 3) {
+    sprintf(string, "colour slot for setrgb must be 0..3 (not %d)", slot);
+    error(sERROR, string);
+    return;
+  }
+  if (r < 0)
+    r = 0;
+  else if (r > 255)
+    r = 255;
+  if (g < 0)
+    g = 0;
+  else if (g > 255)
+    g = 255;
+  if (b < 0)
+    b = 0;
+  else if (b > 255)
+    b = 255;
+
+  ps2rgb[slot][0] = r;
+  ps2rgb[slot][1] = g;
+  ps2rgb[slot][2] = b;
+  if (slot == 0) {
+    backpixel = rgb_to_pixel(r, g, b);
+#ifdef UNIX
+    XSetForeground(display, rgc, backpixel);
+    XSetBackground(display, rgc, backpixel);
+#else
+    DeleteObject(backbrush);
+    backbrush = CreateSolidBrush(backpixel);
+    DeleteObject(backpen);
+    backpen = CreatePen(PS_SOLID, 0, backpixel);
+#endif
+  } else if (slot == 1) {
+    forepixel = rgb_to_pixel(r, g, b);
+#ifdef UNIX
+    XSetForeground(display, gc, forepixel);
+    XSetBackground(display, gc, forepixel);
+#else
+    DeleteObject(forebrush);
+    forebrush = CreateSolidBrush(forepixel);
+    DeleteObject(forepen);
+    forepen = CreatePen(PS_SOLID, 0, forepixel);
+#endif
+  }
+  (void)cmd;
+}
+
+void setdrawbuf(struct command *cmd) {
+  int b;
+
+  if (!winopened) {
+    error(sERROR, "Got no window to draw");
+    return;
+  }
+  b = get_buffer_number();
+  if (b >= 0) {
+    drawbuf = b;
+#ifdef WINDOWS
+    bitcon = bitcons[drawbuf];
+#endif
+  }
+  (void)cmd;
+}
+
+void setdispbuf(struct command *cmd) {
+  int b;
+
+  if (!winopened) {
+    error(sERROR, "Got no window to draw");
+    return;
+  }
+  b = get_buffer_number();
+  if (b >= 0) {
+    wait_frame();
+    dispbuf = b;
+    setdisplaybuf(dispbuf);
+  }
+  (void)cmd;
 }
 
 int rgb_to_pixel(int r, int g, int b) {
@@ -1293,31 +1555,23 @@ void circle(struct command *cmd) {
 #ifdef UNIX
   if (clear) {
     if (fill) {
-      XFillArc(display, window, rgc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
-               360 * 64);
-      XFillArc(display, backbit, rgc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
+      XFillArc(display, backbits[drawbuf], rgc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
                360 * 64);
     } else {
-      XDrawArc(display, window, rgc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
-               360 * 64);
-      XDrawArc(display, backbit, rgc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
+      XDrawArc(display, backbits[drawbuf], rgc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
                360 * 64);
     }
   } else {
     if (fill) {
-      XFillArc(display, window, gc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
-               360 * 64);
-      XFillArc(display, backbit, gc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
+      XFillArc(display, backbits[drawbuf], gc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
                360 * 64);
     } else {
-      XDrawArc(display, window, gc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
-               360 * 64);
-      XDrawArc(display, backbit, gc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
+      XDrawArc(display, backbits[drawbuf], gc, x - r, y - r, 2 * r, 2 * r, 0 * 64,
                360 * 64);
     }
   }
 
-  XFlush(display);
+  sync_drawbuf_if_visible();
   if (printerfile) {
     fprintf(printerfile, "N\n");
     fprintf(printerfile, "%g %g %g (%c) (%c) CI\n", (winheight - y) * psscale,
@@ -1327,7 +1581,10 @@ void circle(struct command *cmd) {
 #else /* WINDOWS */
   startdraw(clear);
   if (fill) {
-    Ellipse(devcon, (int)(x - r), (int)(y - r), (int)(x + r), (int)(y + r));
+    if (devcon != bitcon) {
+      Ellipse(devcon, (int)(x - r), (int)(y - r), (int)(x + r),
+              (int)(y + r));
+    }
     Ellipse(bitcon, (int)(x - r), (int)(y - r), (int)(x + r), (int)(y + r));
     if (printer) {
       Ellipse(printer, (int)((x - r) * prnscale + prnoffx),
@@ -1336,8 +1593,10 @@ void circle(struct command *cmd) {
               (int)((y + r) * prnscale + prnoffy));
     }
   } else {
-    Arc(devcon, (int)(x - r), (int)(y - r), (int)(x + r), (int)(y + r), 0, 0, 0,
-        0);
+    if (devcon != bitcon) {
+      Arc(devcon, (int)(x - r), (int)(y - r), (int)(x + r), (int)(y + r),
+          0, 0, 0, 0);
+    }
     Arc(bitcon, (int)(x - r), (int)(y - r), (int)(x + r), (int)(y + r), 0, 0, 0,
         0);
     if (printer) {
@@ -1389,23 +1648,19 @@ void triangle(struct command *cmd) {
 #ifdef UNIX
   if (clear) {
     if (fill) {
-      XFillPolygon(display, window, rgc, points, 4, Convex, CoordModeOrigin);
-      XFillPolygon(display, backbit, rgc, points, 4, Convex, CoordModeOrigin);
+      XFillPolygon(display, backbits[drawbuf], rgc, points, 4, Convex, CoordModeOrigin);
     } else {
-      XDrawLines(display, window, rgc, points, 4, CoordModeOrigin);
-      XDrawLines(display, backbit, rgc, points, 4, CoordModeOrigin);
+      XDrawLines(display, backbits[drawbuf], rgc, points, 4, CoordModeOrigin);
     }
   } else {
     if (fill) {
-      XFillPolygon(display, window, gc, points, 4, Convex, CoordModeOrigin);
-      XFillPolygon(display, backbit, gc, points, 4, Convex, CoordModeOrigin);
+      XFillPolygon(display, backbits[drawbuf], gc, points, 4, Convex, CoordModeOrigin);
     } else {
-      XDrawLines(display, window, gc, points, 4, CoordModeOrigin);
-      XDrawLines(display, backbit, gc, points, 4, CoordModeOrigin);
+      XDrawLines(display, backbits[drawbuf], gc, points, 4, CoordModeOrigin);
     }
   }
 
-  XFlush(display);
+  sync_drawbuf_if_visible();
   if (printerfile) {
     fprintf(printerfile, "N\n");
     fprintf(printerfile, "%g %g %g %g %g %g (%c) (%c) TRI\n", x0 * psscale,
@@ -1424,13 +1679,17 @@ void triangle(struct command *cmd) {
     }
   }
   if (fill) {
-    Polygon(devcon, points, 3);
+    if (devcon != bitcon) {
+      Polygon(devcon, points, 3);
+    }
     Polygon(bitcon, points, 3);
     if (printer) {
       Polygon(printer, prpoints, 3);
     }
   } else {
-    Polyline(devcon, points, 4);
+    if (devcon != bitcon) {
+      Polyline(devcon, points, 4);
+    }
     Polyline(bitcon, points, 4);
     if (printer) {
       Polyline(printer, prpoints, 3);
@@ -1438,6 +1697,286 @@ void triangle(struct command *cmd) {
   }
   enddraw();
 #endif
+}
+
+#ifdef WINDOWS
+static int clip_gtriangle_inside(win_gtriangle_vertex *v, int edge) {
+  switch (edge) {
+  case 0:
+    return v->x >= 0.0;
+  case 1:
+    return v->x <= (double)(winwidth - 1);
+  case 2:
+    return v->y >= 0.0;
+  default:
+    return v->y <= (double)(winheight - 1);
+  }
+}
+
+static win_gtriangle_vertex clip_gtriangle_intersect(win_gtriangle_vertex *a,
+                                                     win_gtriangle_vertex *b,
+                                                     int edge) {
+  win_gtriangle_vertex v;
+  double bound, delta, t;
+
+  if (edge < 2) {
+    bound = (edge == 0) ? 0.0 : (double)(winwidth - 1);
+    delta = b->x - a->x;
+    t = (delta == 0.0) ? 0.0 : (bound - a->x) / delta;
+  } else {
+    bound = (edge == 2) ? 0.0 : (double)(winheight - 1);
+    delta = b->y - a->y;
+    t = (delta == 0.0) ? 0.0 : (bound - a->y) / delta;
+  }
+  if (t < 0.0) {
+    t = 0.0;
+  } else if (t > 1.0) {
+    t = 1.0;
+  }
+  v.x = a->x + (b->x - a->x) * t;
+  v.y = a->y + (b->y - a->y) * t;
+  v.r = a->r + (b->r - a->r) * t;
+  v.g = a->g + (b->g - a->g) * t;
+  v.b = a->b + (b->b - a->b) * t;
+  return v;
+}
+
+static int clip_gtriangle_edge(win_gtriangle_vertex *in, int in_count,
+                               win_gtriangle_vertex *out, int edge) {
+  win_gtriangle_vertex start, end;
+  int start_inside, end_inside;
+  int i, out_count;
+
+  if (in_count <= 0) {
+    return 0;
+  }
+  out_count = 0;
+  start = in[in_count - 1];
+  start_inside = clip_gtriangle_inside(&start, edge);
+  for (i = 0; i < in_count; i++) {
+    end = in[i];
+    end_inside = clip_gtriangle_inside(&end, edge);
+    if (end_inside) {
+      if (!start_inside && out_count < GTRI_MAX_VERTICES) {
+        out[out_count++] = clip_gtriangle_intersect(&start, &end, edge);
+      }
+      if (out_count < GTRI_MAX_VERTICES) {
+        out[out_count++] = end;
+      }
+    } else if (start_inside && out_count < GTRI_MAX_VERTICES) {
+      out[out_count++] = clip_gtriangle_intersect(&start, &end, edge);
+    }
+    start = end;
+    start_inside = end_inside;
+  }
+  return out_count;
+}
+
+static int clip_gtriangle_polygon(win_gtriangle_vertex *in, int in_count,
+                                  win_gtriangle_vertex *out) {
+  win_gtriangle_vertex scratch1[GTRI_MAX_VERTICES];
+  win_gtriangle_vertex scratch2[GTRI_MAX_VERTICES];
+  win_gtriangle_vertex *src, *dst, *tmp;
+  int count, edge, i;
+
+  if (in_count > GTRI_MAX_VERTICES) {
+    in_count = GTRI_MAX_VERTICES;
+  }
+  for (i = 0; i < in_count; i++) {
+    scratch1[i] = in[i];
+  }
+  src = scratch1;
+  dst = scratch2;
+  count = in_count;
+  for (edge = 0; edge < 4 && count >= 3; edge++) {
+    count = clip_gtriangle_edge(src, count, dst, edge);
+    tmp = src;
+    src = dst;
+    dst = tmp;
+  }
+  for (i = 0; i < count; i++) {
+    out[i] = src[i];
+  }
+  return count;
+}
+
+static COLOR16 gtriangle_color16(double c) {
+  if (c < 0.0) {
+    c = 0.0;
+  } else if (c > 255.0) {
+    c = 255.0;
+  }
+  return (COLOR16)((int)(c + 0.5) << 8);
+}
+
+static int draw_gradient_polygon(HDC hdc, win_gtriangle_vertex *poly,
+                                 int count) {
+  TRIVERTEX vertices[GTRI_MAX_VERTICES];
+  GRADIENT_TRIANGLE mesh[GTRI_MAX_VERTICES - 2];
+  int i;
+
+  if (count < 3) {
+    return TRUE;
+  }
+  if (count > GTRI_MAX_VERTICES) {
+    count = GTRI_MAX_VERTICES;
+  }
+  for (i = 0; i < count; i++) {
+    vertices[i].x = (LONG)(poly[i].x + 0.5);
+    vertices[i].y = (LONG)(poly[i].y + 0.5);
+    vertices[i].Red = gtriangle_color16(poly[i].r);
+    vertices[i].Green = gtriangle_color16(poly[i].g);
+    vertices[i].Blue = gtriangle_color16(poly[i].b);
+    vertices[i].Alpha = 0;
+  }
+  for (i = 0; i < count - 2; i++) {
+    mesh[i].Vertex1 = 0;
+    mesh[i].Vertex2 = i + 1;
+    mesh[i].Vertex3 = i + 2;
+  }
+  return GradientFill(hdc, vertices, count, mesh, count - 2,
+                      GRADIENT_FILL_TRIANGLE);
+}
+#endif
+
+void gtriangle(struct command *cmd) {
+  /* draw a PS2-compatible Gouraud shaded triangle */
+  double x0, y0, x1, y1, x2, y2;
+  double denom;
+#ifdef UNIX
+  int minx, maxx, miny, maxy;
+  double px, py, w0, w1, w2;
+  int x, y, r, g, b;
+  XImage *bits = NULL;
+  XGCValues vals;
+#else
+  win_gtriangle_vertex vertices[3];
+  win_gtriangle_vertex clipped[GTRI_MAX_VERTICES];
+  int clipped_count;
+#endif
+
+  y2 = pop(stNUMBER)->value;
+  x2 = pop(stNUMBER)->value;
+  y1 = pop(stNUMBER)->value;
+  x1 = pop(stNUMBER)->value;
+  y0 = pop(stNUMBER)->value;
+  x0 = pop(stNUMBER)->value;
+  transform(&x0, &y0);
+  transform(&x1, &y1);
+  transform(&x2, &y2);
+  if (!winopened) {
+    error(sERROR, "Got no window to draw");
+    return;
+  }
+
+  denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+  if (denom == 0.0) {
+    return;
+  }
+#ifdef WINDOWS
+  if (x0 != x0 || y0 != y0 || x1 != x1 || y1 != y1 || x2 != x2 ||
+      y2 != y2 || fabs(x0) > 1.0e12 || fabs(y0) > 1.0e12 ||
+      fabs(x1) > 1.0e12 || fabs(y1) > 1.0e12 ||
+      fabs(x2) > 1.0e12 || fabs(y2) > 1.0e12) {
+    return;
+  }
+  if ((x0 < 0.0 && x1 < 0.0 && x2 < 0.0) ||
+      (x0 > (double)(winwidth - 1) && x1 > (double)(winwidth - 1) &&
+       x2 > (double)(winwidth - 1)) ||
+      (y0 < 0.0 && y1 < 0.0 && y2 < 0.0) ||
+      (y0 > (double)(winheight - 1) && y1 > (double)(winheight - 1) &&
+       y2 > (double)(winheight - 1))) {
+    return;
+  }
+#else
+  minx = (int)floor(fmin(x0, fmin(x1, x2)));
+  maxx = (int)ceil(fmax(x0, fmax(x1, x2)));
+  miny = (int)floor(fmin(y0, fmin(y1, y2)));
+  maxy = (int)ceil(fmax(y0, fmax(y1, y2)));
+  if (minx < 0) {
+    minx = 0;
+  }
+  if (miny < 0) {
+    miny = 0;
+  }
+  if (maxx >= winwidth) {
+    maxx = winwidth - 1;
+  }
+  if (maxy >= winheight) {
+    maxy = winheight - 1;
+  }
+  if (minx > maxx || miny > maxy) {
+    return;
+  }
+#endif
+
+#ifdef UNIX
+  XGetGCValues(display, gc, GCPlaneMask, &vals);
+  bits = XGetImage(display, backbits[drawbuf], minx, miny, maxx - minx + 1,
+                   maxy - miny + 1, vals.plane_mask, ZPixmap);
+  if (!bits) {
+    error(sERROR, "Couldn't get bits from window");
+    return;
+  }
+#else
+  vertices[0].x = x0;
+  vertices[0].y = y0;
+  vertices[0].r = ps2rgb[1][0];
+  vertices[0].g = ps2rgb[1][1];
+  vertices[0].b = ps2rgb[1][2];
+  vertices[1].x = x1;
+  vertices[1].y = y1;
+  vertices[1].r = ps2rgb[2][0];
+  vertices[1].g = ps2rgb[2][1];
+  vertices[1].b = ps2rgb[2][2];
+  vertices[2].x = x2;
+  vertices[2].y = y2;
+  vertices[2].r = ps2rgb[3][0];
+  vertices[2].g = ps2rgb[3][1];
+  vertices[2].b = ps2rgb[3][2];
+  clipped_count = clip_gtriangle_polygon(vertices, 3, clipped);
+  if (clipped_count < 3) {
+    return;
+  }
+  startdraw(FALSE);
+  if (!draw_gradient_polygon(bitcon, clipped, clipped_count)) {
+    enddraw();
+    return;
+  }
+  if (devcon != bitcon) {
+    draw_gradient_polygon(devcon, clipped, clipped_count);
+  }
+  enddraw();
+  (void)cmd;
+  return;
+#endif
+
+#ifdef UNIX
+  for (y = miny; y <= maxy; y++) {
+    for (x = minx; x <= maxx; x++) {
+      px = x + 0.5;
+      py = y + 0.5;
+      w0 = ((y1 - y2) * (px - x2) + (x2 - x1) * (py - y2)) / denom;
+      w1 = ((y2 - y0) * (px - x2) + (x0 - x2) * (py - y2)) / denom;
+      w2 = 1.0 - w0 - w1;
+      if (w0 >= -0.000001 && w1 >= -0.000001 && w2 >= -0.000001) {
+        r = (int)(w0 * ps2rgb[1][0] + w1 * ps2rgb[2][0] +
+                  w2 * ps2rgb[3][0] + 0.5);
+        g = (int)(w0 * ps2rgb[1][1] + w1 * ps2rgb[2][1] +
+                  w2 * ps2rgb[3][1] + 0.5);
+        b = (int)(w0 * ps2rgb[1][2] + w1 * ps2rgb[2][2] +
+                  w2 * ps2rgb[3][2] + 0.5);
+        XPutPixel(bits, x - minx, y - miny, rgb_to_pixel(r, g, b));
+      }
+    }
+  }
+
+  XPutImage(display, backbits[drawbuf], gc, bits, 0, 0, minx, miny,
+            maxx - minx + 1, maxy - miny + 1);
+  XDestroyImage(bits);
+  sync_drawbuf_if_visible();
+#endif
+  (void)cmd;
 }
 
 void text(struct command *cmd) {
@@ -1528,9 +2067,8 @@ void text(struct command *cmd) {
   } else {
     yoff = fontheight / 2;
   }
-  XDrawString(display, window, gc, x + xoff, y + yoff, text, len);
-  XDrawString(display, backbit, gc, x + xoff, y + yoff, text, len);
-  XFlush(display);
+  XDrawString(display, backbits[drawbuf], gc, x + xoff, y + yoff, text, len);
+  sync_drawbuf_if_visible();
   if (printerfile) {
     for (i = 0; i < INBUFFLEN; i++) {
       if (*text == '(' || *text == ')') {
@@ -1559,8 +2097,10 @@ void text(struct command *cmd) {
   }
 #else /* WINDOWS */
   startdraw(FALSE);
-  SelectObject(devcon, myfont);
-  SetBkMode(devcon, TRANSPARENT);
+  if (devcon != bitcon) {
+    SelectObject(devcon, myfont);
+    SetBkMode(devcon, TRANSPARENT);
+  }
   SelectObject(bitcon, myfont);
   SetBkMode(bitcon, TRANSPARENT);
   algn = 0;
@@ -1580,8 +2120,10 @@ void text(struct command *cmd) {
     algn |= TA_BOTTOM;
     yoff = fontheight / 2;
   }
-  SetTextAlign(devcon, algn);
-  TextOut(devcon, (int)(x + xoff), (int)(y + yoff), text, len);
+  if (devcon != bitcon) {
+    SetTextAlign(devcon, algn);
+    TextOut(devcon, (int)(x + xoff), (int)(y + yoff), text, len);
+  }
   SetTextAlign(bitcon, algn);
   TextOut(bitcon, (int)(x + xoff), (int)(y + yoff), text, len);
   enddraw();
@@ -1624,7 +2166,9 @@ void closewin() {
     waitpid(backpid, &status, 0);
     backpid = -1;
   }
-  XFreePixmap(display, backbit);
+  XFreePixmap(display, backbits[0]);
+  XFreePixmap(display, backbits[1]);
+  XFreePixmap(display, displaybit);
   XDestroyWindow(display, window);
   XFlush(display);
   if (printerfile) {
@@ -1646,9 +2190,8 @@ void clearwin() {
     return;
   }
 #ifdef UNIX
-  XFillRectangle(display, window, rgc, 0, 0, winwidth, winheight);
-  XFillRectangle(display, backbit, rgc, 0, 0, winwidth, winheight);
-  XFlush(display);
+  XFillRectangle(display, backbits[drawbuf], rgc, 0, 0, winwidth, winheight);
+  sync_drawbuf_if_visible();
   if (printerfile) {
     fprintf(printerfile, "showpage\n");
     fflush(printerfile);
@@ -1656,7 +2199,9 @@ void clearwin() {
 #else /* WINDOWS */
   startdraw(FALSE);
   GetClientRect(window, &interior);
-  FillRect(devcon, &interior, backbrush);
+  if (devcon != bitcon) {
+    FillRect(devcon, &interior, backbrush);
+  }
   FillRect(bitcon, &interior, backbrush);
   if (printer) {
     EndPage(printer);
@@ -1842,22 +2387,18 @@ void rect(struct command *cmd) {
 #ifdef UNIX
   if (clear) {
     if (fill) {
-      XFillRectangle(display, window, rgc, x1, y1, x2 - x1 + 1, y2 - y1 + 1);
-      XFillRectangle(display, backbit, rgc, x1, y1, x2 - x1 + 1, y2 - y1 + 1);
+      XFillRectangle(display, backbits[drawbuf], rgc, x1, y1, x2 - x1 + 1, y2 - y1 + 1);
     } else {
-      XDrawRectangle(display, window, rgc, x1, y1, x2 - x1, y2 - y1);
-      XDrawRectangle(display, backbit, rgc, x1, y1, x2 - x1, y2 - y1);
+      XDrawRectangle(display, backbits[drawbuf], rgc, x1, y1, x2 - x1, y2 - y1);
     }
   } else {
     if (fill) {
-      XFillRectangle(display, window, gc, x1, y1, x2 - x1 + 1, y2 - y1 + 1);
-      XFillRectangle(display, backbit, gc, x1, y1, x2 - x1 + 1, y2 - y1 + 1);
+      XFillRectangle(display, backbits[drawbuf], gc, x1, y1, x2 - x1 + 1, y2 - y1 + 1);
     } else {
-      XDrawRectangle(display, window, gc, x1, y1, x2 - x1, y2 - y1);
-      XDrawRectangle(display, backbit, gc, x1, y1, x2 - x1, y2 - y1);
+      XDrawRectangle(display, backbits[drawbuf], gc, x1, y1, x2 - x1, y2 - y1);
     }
   }
-  XFlush(display);
+  sync_drawbuf_if_visible();
   if (printerfile) {
     fprintf(printerfile, "%g %g %g %g (%c) (%c) RE\n", x1 * psscale,
             (winheight - y1) * psscale, x2 * psscale,
@@ -1876,10 +2417,12 @@ void rect(struct command *cmd) {
   prbox.bottom = (long)(y2 * prnscale + prnoffy);
 
   if (fill) {
-    if (clear) {
-      FillRect(devcon, &box, backbrush);
-    } else {
-      FillRect(devcon, &box, forebrush);
+    if (devcon != bitcon) {
+      if (clear) {
+        FillRect(devcon, &box, backbrush);
+      } else {
+        FillRect(devcon, &box, forebrush);
+      }
     }
     if (clear) {
       FillRect(bitcon, &box, backbrush);
@@ -1892,10 +2435,12 @@ void rect(struct command *cmd) {
                GetStockObject(clear ? WHITE_BRUSH : BLACK_BRUSH));
     }
   } else {
-    if (clear) {
-      FrameRect(devcon, &box, backbrush);
-    } else {
-      FrameRect(devcon, &box, forebrush);
+    if (devcon != bitcon) {
+      if (clear) {
+        FrameRect(devcon, &box, backbrush);
+      } else {
+        FrameRect(devcon, &box, forebrush);
+      }
     }
     if (clear) {
       FrameRect(bitcon, &box, backbrush);
@@ -1992,7 +2537,7 @@ void putbit(void) {
   if (xe + we > 0 && ye + he > 0) {
     XGetGCValues(display, gc, GCPlaneMask, &vals);
     bits =
-        XGetImage(display, backbit, xe, ye, we, he, vals.plane_mask, XYPixmap);
+        XGetImage(display, backbits[drawbuf], xe, ye, we, he, vals.plane_mask, XYPixmap);
     if (!bits) {
       error(sERROR, "Couldn't get bits from window");
       return;
@@ -2027,13 +2572,14 @@ void putbit(void) {
   }
 #ifdef UNIX
   if (bits) {
-    XPutImage(display, window, gc, bits, 0, 0, xe, ye, we, he);
-    XPutImage(display, backbit, gc, bits, 0, 0, xe, ye, we, he);
-    XFlush(display);
+    XPutImage(display, backbits[drawbuf], gc, bits, 0, 0, xe, ye, we, he);
+    sync_drawbuf_if_visible();
     XDestroyImage(bits);
   }
 #else
-  BitBlt(devcon, xe, ye, we, he, bitcon, xe, ye, SRCCOPY);
+  if (drawbuf == dispbuf) {
+    BitBlt(devcon, xe, ye, we, he, bitcon, xe, ye, SRCCOPY);
+  }
   enddraw();
 #endif
 
@@ -2086,7 +2632,7 @@ char *getbit(int x1, int y1, int x2, int y2) {
 #ifdef UNIX
   if (xe1 <= xe2 && ye1 <= ye2) {
     XGetGCValues(display, gc, GCPlaneMask, &vals);
-    bits = XGetImage(display, backbit, xe1, ye1, xe2 - xe1 + 1, ye2 - ye1 + 1,
+    bits = XGetImage(display, backbits[drawbuf], xe1, ye1, xe2 - xe1 + 1, ye2 - ye1 + 1,
                      vals.plane_mask, XYPixmap);
     if (!bits) {
       error(sERROR, "Couldn't get bits from window");

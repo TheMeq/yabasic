@@ -88,19 +88,20 @@ void reorder_stack_after_call(
                          and remove switch value (if any) */
 {
   struct stackentry *keep, *kept;
-  char *kept_string = NULL;
+  char *kept_pointer = NULL;
   double kept_value = 0;
   int kept_type = 0;
 
   if (keep_topmost) {
     keep = pop(stANY);
     kept_type = keep->type;
-    if (keep->type == stSTRING) {
-      kept_string = my_strdup((char *)keep->pointer);
+    if (keep->type == stSTRING || keep->type == stSTRINGARRAYREF ||
+        keep->type == stNUMBERARRAYREF) {
+      kept_pointer = my_strdup((char *)keep->pointer);
     } else if (keep->type == stNUMBER) {
       kept_value = keep->value;
     } else {
-      error(sFATAL, "expecting only string or number on stack");
+      error(sFATAL, "expecting only string, number or array reference on stack");
     }
   }
 
@@ -112,8 +113,9 @@ void reorder_stack_after_call(
   /* push back kept value */
   if (keep_topmost) {
     kept = push();
-    if (kept_type == stSTRING) {
-      kept->pointer = kept_string;
+    if (kept_type == stSTRING || kept_type == stSTRINGARRAYREF ||
+        kept_type == stNUMBERARRAYREF) {
+      kept->pointer = kept_pointer;
     } else {
       kept->value = kept_value;
     }

@@ -10,3 +10,21 @@ for x=0 to 7:for y=0 to 7
 next y:next x
 
 if sum <> 36 error "sum " + str$(sum) + " is not expected"
+
+dim b(1)
+b(0)=42
+array_return(b())
+if b(0) <> 99 error "array reference return broke parameter array"
+
+dim ps2parts$(1)
+ps2count = token("12-34", ps2parts(), "-")
+ps2first = val(ps2parts$(1))
+ps2second = val(ps2parts$(2))
+if ps2count <> 2 error "PS2 token shorthand returned wrong count"
+if ps2first <> 12 error "PS2 token shorthand first token wrong"
+if ps2second <> 34 error "PS2 token shorthand second token wrong"
+
+sub array_return(b())
+  b(0)=99
+  return b()
+end sub

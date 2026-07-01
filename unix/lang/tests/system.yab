@@ -3,3 +3,8 @@
 system("ls")
 a=system("ls")
 a$=system$("ls")
+
+a=peek("port1")
+a=peek("port2")
+a$=peek$("port1")
+a$=peek$("port2")

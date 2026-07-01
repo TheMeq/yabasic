@@ -139,6 +139,8 @@ void mystream (int);		/* switch to specified stream */
 int name2yc(char *); /* convert a color name to an integer */
 char *yc2name(int); /* convert an integer to a color name */
 void con_xcap_deinit(void); /* bring console back to normal/inital state */
+int controller_port_state(int);
+char *controller_port_info(int);
 #ifdef WINDOWS
 extern HANDLE gotwinkey;		/* mutex to signal key reception */
 extern char conkeybuff[]; /* Key received from console */
@@ -149,6 +151,7 @@ extern int LINES;		/* number of lines on screen */
 extern int COLS;		/* number of columns on screen */
 extern HANDLE ConsoleInput;	/* handle for console input */
 extern HANDLE ConsoleOutput;	/* handle for console output */
+extern HWND window;		/* handle of graphics window */
 #else
 extern int winpid;		/* pid of process waiting for window keys */
 extern int termpid;		/* pid of process waiting for terminal keys */
@@ -370,9 +373,9 @@ enum cmd_type {
     cSEEK, cSEEK2, cTESTEOF, cWAIT, cBELL, cMOVE,
     cCLEARSCR, cCOLOUR, cCHKPROMPT, cERROR,
 
-    cOPENWIN, cDOT, cLINE, cCIRCLE, cTRIANGLE, cTEXT1, cTEXT2, cTEXT3, cCLOSEWIN, cCLEARWIN,	/* grafics */
+    cOPENWIN, cDOT, cLINE, cCIRCLE, cTRIANGLE, cGTRIANGLE, cTEXT1, cTEXT2, cTEXT3, cCLOSEWIN, cCLEARWIN,	/* grafics */
     cOPENPRN, cCLOSEPRN, cMOVEORIGIN, cRECT, cGCOLOUR, cGCOLOUR2,
-    cGBACKCOLOUR, cGBACKCOLOUR2, cPUTBIT, cPUTCHAR,
+    cGBACKCOLOUR, cGBACKCOLOUR2, cSETRGB, cSETDRAWBUF, cSETDISPBUF, cPUTBIT, cPUTCHAR,
 
     cFRNBF_SET_NUMBER, cFRNBF_SET_STRING, cFRNBF_FREE,    /* foreign libraries */
     cFRNBF_SET_BUFFER,
@@ -565,6 +568,8 @@ void pop_stream (void);
 void mymove (void);
 void clearscreen (void);
 char *inkey (double);
+int controller_port_state (int);
+int controller_inkey (char *);
 char *replace_escapes (char *);
 int count_backslashes(char *);
 
@@ -582,6 +587,7 @@ void moveorigin (char *);
 int check_alignement (char *);
 void circle (struct command *);
 void triangle (struct command *);
+void gtriangle (struct command *);
 void create_text (int);
 void text (struct command *);
 void closewin (void);
@@ -596,6 +602,9 @@ void gettermkey (char *);
 char *getbit (int, int, int, int);
 char *getchars (int, int, int, int);
 void change_colour (struct command *);
+void setrgb (struct command *);
+void setdrawbuf (struct command *);
+void setdispbuf (struct command *);
 #ifdef WINDOWS
 LRESULT CALLBACK mywindowproc (HWND, unsigned, UINT, DWORD);
 #else

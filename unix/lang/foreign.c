@@ -94,9 +94,8 @@ void frnbf_set_buffer() {
 #else
 
 #define NUM_FFI_TYPES 16
-#ifdef WINDOWS
-#define FFI_BUILDING
-#endif
+/* Let ffi.h select dllimport on Windows. Defining FFI_BUILDING here only
+   works when linking against a static libffi. */
 
 #include <ffi.h>
 #include <stdint.h>

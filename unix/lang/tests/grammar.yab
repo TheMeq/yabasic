@@ -21,3 +21,15 @@ open #1,"a":open #a,"a":open #(a+1),"a"
 print #1 "a":print #a "a":print #(a+1) "a"
 input #1 a:input #a a:input #(a+1) a
 
+# PS2 graphics compatibility syntax
+setrgb 0,255,0,0
+setrgb 1,-10,300,42
+setrgb 1,0,255,0
+setrgb 2,255,0,255
+setrgb 3,0,255,255
+setdrawbuf 0
+setdispbuf 1
+gtriangle 10,10 to 20,10 to 15,20
+
+dim ps2parts$(1)
+ps2count = token("12-34",ps2parts(),"-")

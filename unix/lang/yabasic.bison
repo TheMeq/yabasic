@@ -57,6 +57,15 @@ int missing_loop_line=0;
 int loop_nesting=0;
 int switch_nesting=0;
 
+static char *ps2_string_arrayref_name(char *name) {
+  char *compat_name;
+
+  compat_name = my_malloc(strlen(name) + 2);
+  strcpy(compat_name, name);
+  strcat(compat_name, "$");
+  return compat_name;
+}
+
 void report_if_missing(char *text,int eof) {
   if (missing_loop || missing_endif || missing_next || missing_until || missing_wend) {
     if (eof) {
@@ -153,7 +162,8 @@ void collect_missing_clauses(char *string, char exclude) {
 %token tNEQ tLEQ tGEQ tLTN tGTN tEQU tEQU2 tPOW
 %token tREAD tDATA tRESTORE
 %token tOPEN tCLOSE tSEEK tTELL tAS tREADING tWRITING tORIGIN
-%token tWINDOW tDOT tLINE tCIRCLE tTRIANGLE tTEXT tCLEAR tFILL tPRINTER
+%token tWINDOW tDOT tLINE tCIRCLE tTRIANGLE tGTRIANGLE tTEXT tCLEAR tFILL tPRINTER
+%token tSETRGB tSETDRAWBUF tSETDISPBUF
 %token tWAIT tBELL tLET tARDIM tARSIZE tBIND
 %token tRECT tGETBIT tPUTBIT tGETCHAR tPUTCHAR tNEW tCURVE
 
@@ -251,6 +261,9 @@ statement:  /* empty */
   | tCOLOUR string_expression {add_command(cGCOLOUR2);}
   | tBACKCOLOUR expression ',' expression ',' expression {add_command(cGBACKCOLOUR);}
   | tBACKCOLOUR string_expression {add_command(cGBACKCOLOUR2);}
+  | tSETRGB expression ',' expression ',' expression ',' expression {add_command(cSETRGB);}
+  | tSETDRAWBUF expression {add_command(cSETDRAWBUF);}
+  | tSETDISPBUF expression {add_command(cSETDISPBUF);}
   | tREAD readlist
   | tDATA datalist
   | tRESTORE {create_restore("");}
@@ -285,6 +298,7 @@ statement:  /* empty */
   | tCLOSE tCURVE {create_line(0);}
   | clear_fill_clause tCIRCLE coordinates ',' expression {add_command(cCIRCLE);putindrawmode(0);}
   | clear_fill_clause tTRIANGLE coordinates to coordinates to coordinates {add_command(cTRIANGLE);putindrawmode(0);}
+  | tGTRIANGLE coordinates to coordinates to coordinates {add_command(cGTRIANGLE);}
   | tTEXT coordinates ',' string_expression {add_command(cTEXT1);}
   | tTEXT coordinates ',' string_expression ',' string_expression {add_command(cTEXT2);}
   | tTEXT coordinates ',' string_expression ',' string_expression ',' string_expression {add_command(cTEXT3);}
@@ -449,7 +463,8 @@ arrayref: tSYMBOL '(' ')' {create_pusharrayref(dotify($1,FALSE),stNUMBERARRAYREF
   ;
 
 string_arrayref: tSTRSYM '(' ')' {create_pusharrayref(dotify($1,FALSE),stSTRINGARRAYREF);}
-  ;
+  | tSYMBOL '(' ')' {char *ps2_name=ps2_string_arrayref_name($1); create_pusharrayref(dotify(ps2_name,FALSE),stSTRINGARRAYREF); my_free(ps2_name);}
+;
 
 coordinates: expression ',' expression
   ;

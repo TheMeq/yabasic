@@ -1300,6 +1300,10 @@ static void initialize(void)
   cexplanation[cGBACKCOLOUR2] = "GBACKCOLOUR2";
   cexplanation[cCIRCLE] = "CIRCLE";
   cexplanation[cTRIANGLE] = "TRIANGLE";
+  cexplanation[cGTRIANGLE] = "GTRIANGLE";
+  cexplanation[cSETRGB] = "SETRGB";
+  cexplanation[cSETDRAWBUF] = "SETDRAWBUF";
+  cexplanation[cSETDISPBUF] = "SETDISPBUF";
   cexplanation[cTEXT1] = "TEXT1";
   cexplanation[cTEXT2] = "TEXT2";
   cexplanation[cTEXT3] = "TEXT3";
@@ -1865,6 +1869,18 @@ static void run_it()
         DONE;
       case cTRIANGLE:
         triangle(currcmd);
+        DONE;
+      case cGTRIANGLE:
+        gtriangle(currcmd);
+        DONE;
+      case cSETRGB:
+        setrgb(currcmd);
+        DONE;
+      case cSETDRAWBUF:
+        setdrawbuf(currcmd);
+        DONE;
+      case cSETDISPBUF:
+        setdispbuf(currcmd);
         DONE;
       case cTEXT1:
       case cTEXT2:

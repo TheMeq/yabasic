@@ -16,6 +16,15 @@
 #ifndef YABASIC_INCLUDED
 #include "yabasic.h" /* all prototypes and structures */
 #endif
+#ifdef WINDOWS
+#include <hidsdi.h>
+#include <mmsystem.h>
+#include <setupapi.h>
+#endif
+#if defined(UNIX) && defined(__linux__)
+#include <linux/joystick.h>
+#include <sys/ioctl.h>
+#endif
 
 /* ------------- local defines ----------------- */
 
@@ -27,6 +36,39 @@
 #define YC_YELLOW 5
 #define YC_CYAN 6
 #define YC_MAGENTA 7
+
+#define PS2_SELECT 1
+#define PS2_L3 2
+#define PS2_R3 4
+#define PS2_START 8
+#define PS2_UP 16
+#define PS2_RIGHT 32
+#define PS2_DOWN 64
+#define PS2_LEFT 128
+#define PS2_L2 256
+#define PS2_R2 512
+#define PS2_L1 1024
+#define PS2_R1 2048
+#define PS2_TRIANGLE 4096
+#define PS2_CIRCLE 8192
+#define PS2_CROSS 16384
+#define PS2_SQUARE 32768
+
+#define PS2_LA_UP 1
+#define PS2_LA_DOWN 2
+#define PS2_LA_LEFT 4
+#define PS2_LA_RIGHT 8
+#define PS2_RA_UP 16
+#define PS2_RA_DOWN 32
+#define PS2_RA_LEFT 64
+#define PS2_RA_RIGHT 128
+
+#define PS2_AXIS_THRESHOLD 16000
+
+#define YB_PAD_SOURCE_XINPUT 1
+#define YB_PAD_SOURCE_WINMM 2
+#define YB_PAD_SOURCE_KEYBOARD 4
+#define YB_PAD_SOURCE_HID 8
 
 #ifndef COLOR_BLACK
 #define COLOR_BLACK 0
@@ -54,6 +96,9 @@ static void backchar(int);       /* put char back into stream */
 static void readline(void);      /* read one line from current stream */
 static void con_xcap_init(void); /* initialize console extra capabilities */
 static void initcol(void);       /* initialize colors */
+static int native_controller_state(int, int *); /* get PS2-style pad state */
+static int native_controller_state_with_sources(int, int *, int *);
+static int first_controller_key(int, int, char *); /* convert pad state to key */
 int checkstream(void);           /* test if currst is still valid */
 #ifdef WINDOWS
 static DWORD keythread(LPWORD);          /* wait for key input from console */
@@ -77,6 +122,9 @@ static char linebuffer[INBUFFLEN]; /* buffer for one line of input */
 int con_xcap_inized =
     FALSE; /* true, if console extra capabilities have been initialized */
 static char *currchar; /* current char to read */
+static int controller_baseline_initialized[2] = {FALSE, FALSE};
+static int controller_baseline_state[2] = {0, 0};
+static int controller_last_raw_state[2] = {0, 0};
 #ifdef UNIX
 FILE *lineprinter = NULL; /* handle for line printer */
 #else
@@ -97,6 +145,966 @@ HANDLE lineprinter = INVALID_HANDLE_VALUE; /* handle for line printer */
 #endif
 
 /* ------------- functions ---------------- */
+
+#ifdef WINDOWS
+#define YB_HID_MAX_CONTROLLERS 2
+
+static HANDLE hid_controller[YB_HID_MAX_CONTROLLERS] = {NULL, NULL};
+static USHORT hid_input_len[YB_HID_MAX_CONTROLLERS] = {0, 0};
+static USHORT hid_vid[YB_HID_MAX_CONTROLLERS] = {0, 0};
+static USHORT hid_pid[YB_HID_MAX_CONTROLLERS] = {0, 0};
+static char hid_name[YB_HID_MAX_CONTROLLERS][128];
+static int hid_last_state[YB_HID_MAX_CONTROLLERS] = {0, 0};
+static int hid_initialized = FALSE;
+static int hid_count = 0;
+
+static void hid_product_to_string(WCHAR *wide, char *out, int outlen) {
+  if (outlen <= 0) {
+    return;
+  }
+  out[0] = '\0';
+  if (!wide || !wide[0]) {
+    return;
+  }
+  WideCharToMultiByte(CP_ACP, 0, wide, -1, out, outlen, NULL, NULL);
+  out[outlen - 1] = '\0';
+}
+
+static int hid_is_switch_pro_controller(HIDD_ATTRIBUTES *attrs,
+                                        WCHAR *product) {
+  return (attrs->VendorID == 0x057e && attrs->ProductID == 0x2009) ||
+         (product && wcsstr(product, L"Pro Controller"));
+}
+
+static void hid_close_controller(int index) {
+  if (index < 0 || index >= YB_HID_MAX_CONTROLLERS) {
+    return;
+  }
+  if (hid_controller[index]) {
+    CloseHandle(hid_controller[index]);
+    hid_controller[index] = NULL;
+  }
+  hid_input_len[index] = 0;
+  hid_last_state[index] = 0;
+  hid_name[index][0] = '\0';
+}
+
+static void ensure_hid_controllers(void) {
+  GUID guid;
+  HDEVINFO info;
+  SP_DEVICE_INTERFACE_DATA ifdata;
+  DWORD index;
+
+  if (hid_initialized) {
+    return;
+  }
+  hid_initialized = TRUE;
+  HidD_GetHidGuid(&guid);
+  info = SetupDiGetClassDevs(&guid, NULL, NULL,
+                             DIGCF_DEVICEINTERFACE | DIGCF_PRESENT);
+  if (info == INVALID_HANDLE_VALUE) {
+    return;
+  }
+  ifdata.cbSize = sizeof(ifdata);
+  for (index = 0;
+       hid_count < YB_HID_MAX_CONTROLLERS &&
+       SetupDiEnumDeviceInterfaces(info, NULL, &guid, index, &ifdata);
+       index++) {
+    DWORD needed = 0;
+    PSP_DEVICE_INTERFACE_DETAIL_DATA detail;
+    HANDLE handle;
+    HIDD_ATTRIBUTES attrs;
+    WCHAR product[256];
+    PHIDP_PREPARSED_DATA prep = NULL;
+    HIDP_CAPS caps;
+
+    SetupDiGetDeviceInterfaceDetail(info, &ifdata, NULL, 0, &needed, NULL);
+    detail = (PSP_DEVICE_INTERFACE_DETAIL_DATA)malloc(needed);
+    if (!detail) {
+      continue;
+    }
+    memset(detail, 0, needed);
+    detail->cbSize = sizeof(*detail);
+    if (!SetupDiGetDeviceInterfaceDetail(info, &ifdata, detail, needed, NULL,
+                                         NULL)) {
+      free(detail);
+      continue;
+    }
+    handle = CreateFile(detail->DevicePath, GENERIC_READ | GENERIC_WRITE,
+                        FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                        OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+    if (handle == INVALID_HANDLE_VALUE) {
+      handle = CreateFile(detail->DevicePath, GENERIC_READ,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                          OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+    }
+    free(detail);
+    if (handle == INVALID_HANDLE_VALUE) {
+      continue;
+    }
+
+    memset(&attrs, 0, sizeof(attrs));
+    attrs.Size = sizeof(attrs);
+    memset(product, 0, sizeof(product));
+    if (!HidD_GetAttributes(handle, &attrs) ||
+        !HidD_GetProductString(handle, product, sizeof(product)) ||
+        !hid_is_switch_pro_controller(&attrs, product)) {
+      CloseHandle(handle);
+      continue;
+    }
+
+    hid_controller[hid_count] = handle;
+    hid_vid[hid_count] = attrs.VendorID;
+    hid_pid[hid_count] = attrs.ProductID;
+    hid_product_to_string(product, hid_name[hid_count],
+                          sizeof(hid_name[hid_count]));
+    hid_input_len[hid_count] = 64;
+    if (HidD_GetPreparsedData(handle, &prep)) {
+      if (HidP_GetCaps(prep, &caps) == HIDP_STATUS_SUCCESS &&
+          caps.InputReportByteLength > 0 && caps.InputReportByteLength <= 128) {
+        hid_input_len[hid_count] = caps.InputReportByteLength;
+      }
+      HidD_FreePreparsedData(prep);
+    }
+    HidD_SetNumInputBuffers(handle, 64);
+    hid_count++;
+  }
+  SetupDiDestroyDeviceInfoList(info);
+}
+
+static int map_switch_pro_hid_report(BYTE *report, DWORD got) {
+  BYTE right, shared, left;
+  int state = 0;
+
+  if (got < 6 || (report[0] != 0x30 && report[0] != 0x3f)) {
+    return 0;
+  }
+  right = report[3];
+  shared = report[4];
+  left = report[5];
+
+  if (shared & 0x01) {
+    state |= PS2_SELECT;
+  }
+  if (shared & 0x08) {
+    state |= PS2_L3;
+  }
+  if (shared & 0x04) {
+    state |= PS2_R3;
+  }
+  if (shared & 0x02) {
+    state |= PS2_START;
+  }
+  if (left & 0x02) {
+    state |= PS2_UP;
+  }
+  if (left & 0x04) {
+    state |= PS2_RIGHT;
+  }
+  if (left & 0x01) {
+    state |= PS2_DOWN;
+  }
+  if (left & 0x08) {
+    state |= PS2_LEFT;
+  }
+  if (left & 0x80) {
+    state |= PS2_L2;
+  }
+  if (right & 0x80) {
+    state |= PS2_R2;
+  }
+  if (left & 0x40) {
+    state |= PS2_L1;
+  }
+  if (right & 0x40) {
+    state |= PS2_R1;
+  }
+  if (right & 0x02) {
+    state |= PS2_TRIANGLE;
+  }
+  if (right & 0x08) {
+    state |= PS2_CIRCLE;
+  }
+  if (right & 0x04) {
+    state |= PS2_CROSS;
+  }
+  if (right & 0x01) {
+    state |= PS2_SQUARE;
+  }
+  return state;
+}
+
+static int read_hid_report(int port, BYTE *report, DWORD *got) {
+  OVERLAPPED ov;
+  BOOL ok;
+  DWORD err;
+
+  *got = 0;
+  memset(report, 0, 128);
+  memset(&ov, 0, sizeof(ov));
+  ov.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+  if (!ov.hEvent) {
+    return FALSE;
+  }
+  ok = ReadFile(hid_controller[port], report, hid_input_len[port], got, &ov);
+  if (!ok) {
+    err = GetLastError();
+    if (err == ERROR_IO_PENDING) {
+      if (WaitForSingleObject(ov.hEvent, 0) == WAIT_OBJECT_0) {
+        ok = GetOverlappedResult(hid_controller[port], &ov, got, FALSE);
+      } else {
+        CancelIo(hid_controller[port]);
+        GetOverlappedResult(hid_controller[port], &ov, got, FALSE);
+        ok = FALSE;
+      }
+    } else if (err == ERROR_DEVICE_NOT_CONNECTED || err == ERROR_INVALID_HANDLE) {
+      hid_close_controller(port);
+    }
+  }
+  CloseHandle(ov.hEvent);
+  return ok && *got > 0;
+}
+
+static int map_hid_state(int port, int *analog, int *connected) {
+  int reads = 0;
+  BYTE report[128];
+  DWORD got;
+
+  (void)analog;
+  if (connected) {
+    *connected = FALSE;
+  }
+  if (port < 0 || port >= YB_HID_MAX_CONTROLLERS) {
+    return 0;
+  }
+  ensure_hid_controllers();
+  if (!hid_controller[port]) {
+    return 0;
+  }
+  if (connected) {
+    *connected = TRUE;
+  }
+  while (reads < 64 && read_hid_report(port, report, &got)) {
+    hid_last_state[port] = map_switch_pro_hid_report(report, got);
+    reads++;
+  }
+  return hid_last_state[port];
+}
+
+static void hid_port_info(int port, char *out, int outlen) {
+  ensure_hid_controllers();
+  if (port < 0 || port >= YB_HID_MAX_CONTROLLERS || !hid_controller[port]) {
+    snprintf(out, outlen, "hid_count=%d", hid_count);
+    return;
+  }
+  snprintf(out, outlen, "hid_count=%d hid_name=\"%s\" hid_vid=%04x "
+                        "hid_pid=%04x",
+           hid_count, hid_name[port], hid_vid[port], hid_pid[port]);
+}
+
+typedef struct {
+  WORD wButtons;
+  BYTE bLeftTrigger;
+  BYTE bRightTrigger;
+  SHORT sThumbLX;
+  SHORT sThumbLY;
+  SHORT sThumbRX;
+  SHORT sThumbRY;
+} YB_XINPUT_GAMEPAD;
+
+typedef struct {
+  DWORD dwPacketNumber;
+  YB_XINPUT_GAMEPAD Gamepad;
+} YB_XINPUT_STATE;
+
+typedef DWORD(WINAPI *xinput_get_state_t)(DWORD, YB_XINPUT_STATE *);
+static xinput_get_state_t xinput_get_state = NULL;
+static HMODULE xinput_module = NULL;
+static int xinput_tried = FALSE;
+
+#define YB_XINPUT_DPAD_UP 0x0001
+#define YB_XINPUT_DPAD_DOWN 0x0002
+#define YB_XINPUT_DPAD_LEFT 0x0004
+#define YB_XINPUT_DPAD_RIGHT 0x0008
+#define YB_XINPUT_START 0x0010
+#define YB_XINPUT_BACK 0x0020
+#define YB_XINPUT_LEFT_THUMB 0x0040
+#define YB_XINPUT_RIGHT_THUMB 0x0080
+#define YB_XINPUT_LEFT_SHOULDER 0x0100
+#define YB_XINPUT_RIGHT_SHOULDER 0x0200
+#define YB_XINPUT_A 0x1000
+#define YB_XINPUT_B 0x2000
+#define YB_XINPUT_X 0x4000
+#define YB_XINPUT_Y 0x8000
+
+static void ensure_xinput_loaded(void) {
+  if (!xinput_tried) {
+    const char *dlls[] = {"xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll",
+                          NULL};
+    const char **dll;
+    xinput_tried = TRUE;
+    for (dll = dlls; *dll && !xinput_module; dll++) {
+      xinput_module = LoadLibrary(*dll);
+    }
+    if (xinput_module) {
+      xinput_get_state =
+          (xinput_get_state_t)GetProcAddress(xinput_module, "XInputGetState");
+    }
+  }
+}
+
+static int map_xinput_state(int port, int *analog, int *connected) {
+  YB_XINPUT_STATE xs;
+  WORD buttons;
+  int state = 0;
+
+  (void)analog;
+  if (connected) {
+    *connected = FALSE;
+  }
+  ensure_xinput_loaded();
+  if (!xinput_get_state ||
+      xinput_get_state((DWORD)port, &xs) != ERROR_SUCCESS) {
+    return 0;
+  }
+  if (connected) {
+    *connected = TRUE;
+  }
+  buttons = xs.Gamepad.wButtons;
+  if (buttons & YB_XINPUT_BACK) {
+    state |= PS2_SELECT;
+  }
+  if (buttons & YB_XINPUT_LEFT_THUMB) {
+    state |= PS2_L3;
+  }
+  if (buttons & YB_XINPUT_RIGHT_THUMB) {
+    state |= PS2_R3;
+  }
+  if (buttons & YB_XINPUT_START) {
+    state |= PS2_START;
+  }
+  if (buttons & YB_XINPUT_DPAD_UP) {
+    state |= PS2_UP;
+  }
+  if (buttons & YB_XINPUT_DPAD_RIGHT) {
+    state |= PS2_RIGHT;
+  }
+  if (buttons & YB_XINPUT_DPAD_DOWN) {
+    state |= PS2_DOWN;
+  }
+  if (buttons & YB_XINPUT_DPAD_LEFT) {
+    state |= PS2_LEFT;
+  }
+  if (xs.Gamepad.bLeftTrigger > 30) {
+    state |= PS2_L2;
+  }
+  if (xs.Gamepad.bRightTrigger > 30) {
+    state |= PS2_R2;
+  }
+  if (buttons & YB_XINPUT_LEFT_SHOULDER) {
+    state |= PS2_L1;
+  }
+  if (buttons & YB_XINPUT_RIGHT_SHOULDER) {
+    state |= PS2_R1;
+  }
+  if (buttons & YB_XINPUT_Y) {
+    state |= PS2_TRIANGLE;
+  }
+  if (buttons & YB_XINPUT_B) {
+    state |= PS2_CIRCLE;
+  }
+  if (buttons & YB_XINPUT_A) {
+    state |= PS2_CROSS;
+  }
+  if (buttons & YB_XINPUT_X) {
+    state |= PS2_SQUARE;
+  }
+  return state;
+}
+
+static int is_key_down(int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
+
+static int keyboard_input_active(void) {
+  HWND foreground = GetForegroundWindow();
+  HWND console = GetConsoleWindow();
+
+  if (winopened && window) {
+    return foreground == window;
+  }
+  return !foreground || foreground == console;
+}
+
+static int map_keyboard_state(void) {
+  int state = 0;
+
+  if (!keyboard_input_active()) {
+    return 0;
+  }
+  if (is_key_down(VK_UP) || is_key_down('W')) {
+    state |= PS2_UP;
+  }
+  if (is_key_down(VK_RIGHT) || is_key_down('D')) {
+    state |= PS2_RIGHT;
+  }
+  if (is_key_down(VK_DOWN) || is_key_down('S')) {
+    state |= PS2_DOWN;
+  }
+  if (is_key_down(VK_LEFT) || is_key_down('A')) {
+    state |= PS2_LEFT;
+  }
+  if (is_key_down(VK_SPACE) || is_key_down(VK_RETURN) || is_key_down('X')) {
+    state |= PS2_CROSS;
+  }
+  if (is_key_down(VK_ESCAPE) || is_key_down('C')) {
+    state |= PS2_CIRCLE;
+  }
+  if (is_key_down('Z')) {
+    state |= PS2_SQUARE;
+  }
+  if (is_key_down(VK_SHIFT) || is_key_down('T') || is_key_down('Y')) {
+    state |= PS2_TRIANGLE;
+  }
+  if (is_key_down(VK_BACK)) {
+    state |= PS2_SELECT;
+  }
+  if (is_key_down(VK_TAB)) {
+    state |= PS2_START;
+  }
+  if (is_key_down('Q')) {
+    state |= PS2_L1;
+  }
+  if (is_key_down('E')) {
+    state |= PS2_R1;
+  }
+  return state;
+}
+
+static DWORD joy_button_mask(int button) {
+  return (DWORD)(1UL << (button - 1));
+}
+
+#define YB_WINMM_MAX_DEVS 32
+static int winmm_initialized = FALSE;
+static int winmm_selected_id[2] = {-1, -1};
+static int winmm_last_state[YB_WINMM_MAX_DEVS];
+static int winmm_axis_baseline_initialized[YB_WINMM_MAX_DEVS];
+static JOYINFOEX winmm_axis_baseline[YB_WINMM_MAX_DEVS];
+
+static int winmm_axis_moved(DWORD value, DWORD baseline, DWORD minimum,
+                            DWORD maximum) {
+  DWORD range;
+  DWORD threshold;
+  DWORD diff;
+
+  if (maximum <= minimum) {
+    return FALSE;
+  }
+  range = maximum - minimum;
+  threshold = range / 8;
+  if (threshold < 4096) {
+    threshold = 4096;
+  }
+  diff = value > baseline ? value - baseline : baseline - value;
+  return diff > threshold;
+}
+
+static int winmm_analog_axes_active(int id, JOYCAPS *caps, JOYINFOEX *joy) {
+  JOYINFOEX *baseline;
+
+  if (id < 0 || id >= YB_WINMM_MAX_DEVS) {
+    return FALSE;
+  }
+  if (!winmm_axis_baseline_initialized[id]) {
+    winmm_axis_baseline[id] = *joy;
+    winmm_axis_baseline_initialized[id] = TRUE;
+    return FALSE;
+  }
+
+  baseline = &winmm_axis_baseline[id];
+  if (winmm_axis_moved(joy->dwXpos, baseline->dwXpos, caps->wXmin,
+                       caps->wXmax)) {
+    return TRUE;
+  }
+  if (winmm_axis_moved(joy->dwYpos, baseline->dwYpos, caps->wYmin,
+                       caps->wYmax)) {
+    return TRUE;
+  }
+  if ((caps->wCaps & JOYCAPS_HASZ) &&
+      winmm_axis_moved(joy->dwZpos, baseline->dwZpos, caps->wZmin,
+                       caps->wZmax)) {
+    return TRUE;
+  }
+  if ((caps->wCaps & JOYCAPS_HASR) &&
+      winmm_axis_moved(joy->dwRpos, baseline->dwRpos, caps->wRmin,
+                       caps->wRmax)) {
+    return TRUE;
+  }
+  if ((caps->wCaps & JOYCAPS_HASU) &&
+      winmm_axis_moved(joy->dwUpos, baseline->dwUpos, caps->wUmin,
+                       caps->wUmax)) {
+    return TRUE;
+  }
+  if ((caps->wCaps & JOYCAPS_HASV) &&
+      winmm_axis_moved(joy->dwVpos, baseline->dwVpos, caps->wVmin,
+                       caps->wVmax)) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+static int map_winmm_device_state(int id, int *analog, int *connected,
+                                  JOYCAPS *caps_out, JOYINFOEX *joy_out) {
+  JOYINFOEX joy;
+  JOYCAPS caps;
+  int state = 0;
+
+  (void)analog;
+  if (connected) {
+    *connected = FALSE;
+  }
+  if (id < 0 || id >= (int)joyGetNumDevs()) {
+    return 0;
+  }
+  if (joyGetDevCaps((UINT)id, &caps, sizeof(caps)) != JOYERR_NOERROR) {
+    return 0;
+  }
+  memset(&joy, 0, sizeof(joy));
+  joy.dwSize = sizeof(joy);
+  joy.dwFlags = JOY_RETURNALL;
+  if (joyGetPosEx((UINT)id, &joy) != JOYERR_NOERROR) {
+    return 0;
+  }
+  if (connected) {
+    *connected = TRUE;
+  }
+  if (caps_out) {
+    *caps_out = caps;
+  }
+  if (joy_out) {
+    *joy_out = joy;
+  }
+  if (winmm_analog_axes_active(id, &caps, &joy)) {
+    return 0;
+  }
+  if (joy.dwButtons & joy_button_mask(1)) {
+    state |= PS2_SQUARE;
+  }
+  if (joy.dwButtons & joy_button_mask(2)) {
+    state |= PS2_CROSS;
+  }
+  if (joy.dwButtons & joy_button_mask(3)) {
+    state |= PS2_CIRCLE;
+  }
+  if (joy.dwButtons & joy_button_mask(4)) {
+    state |= PS2_TRIANGLE;
+  }
+  if (joy.dwButtons & joy_button_mask(5)) {
+    state |= PS2_L1;
+  }
+  if (joy.dwButtons & joy_button_mask(6)) {
+    state |= PS2_R1;
+  }
+  if (joy.dwButtons & joy_button_mask(7)) {
+    state |= PS2_L2;
+  }
+  if (joy.dwButtons & joy_button_mask(8)) {
+    state |= PS2_R2;
+  }
+  if (joy.dwButtons & joy_button_mask(9)) {
+    state |= PS2_SELECT;
+  }
+  if (joy.dwButtons & joy_button_mask(10)) {
+    state |= PS2_START;
+  }
+  if (joy.dwButtons & joy_button_mask(11)) {
+    state |= PS2_L3;
+  }
+  if (joy.dwButtons & joy_button_mask(12)) {
+    state |= PS2_R3;
+  }
+  return state;
+}
+
+static int connected_winmm_device_count(void) {
+  int id, max, connected, count = 0;
+
+  max = (int)joyGetNumDevs();
+  if (max > YB_WINMM_MAX_DEVS) {
+    max = YB_WINMM_MAX_DEVS;
+  }
+  for (id = 0; id < max; id++) {
+    map_winmm_device_state(id, NULL, &connected, NULL, NULL);
+    if (connected) {
+      count++;
+    }
+  }
+  return count;
+}
+
+static int nth_connected_winmm_device(int n) {
+  int id, max, connected;
+
+  max = (int)joyGetNumDevs();
+  if (max > YB_WINMM_MAX_DEVS) {
+    max = YB_WINMM_MAX_DEVS;
+  }
+  for (id = 0; id < max; id++) {
+    map_winmm_device_state(id, NULL, &connected, NULL, NULL);
+    if (connected && n-- == 0) {
+      return id;
+    }
+  }
+  return -1;
+}
+
+static int map_winmm_state(int port, int *analog, int *connected) {
+  int id, max, state, device_connected;
+  int connected_count, fallback_id;
+  int new_state[YB_WINMM_MAX_DEVS];
+
+  (void)analog;
+  if (connected) {
+    *connected = FALSE;
+  }
+  if (port < 0 || port > 1) {
+    return 0;
+  }
+  max = (int)joyGetNumDevs();
+  if (max > YB_WINMM_MAX_DEVS) {
+    max = YB_WINMM_MAX_DEVS;
+  }
+  memset(new_state, 0, sizeof(new_state));
+
+  connected_count = 0;
+  for (id = 0; id < max; id++) {
+    state = map_winmm_device_state(id, NULL, &device_connected, NULL, NULL);
+    if (!device_connected) {
+      continue;
+    }
+    connected_count++;
+    new_state[id] = state;
+    if (connected) {
+      *connected = TRUE;
+    }
+    if (winmm_initialized && state != winmm_last_state[id] && state) {
+      winmm_selected_id[port] = id;
+    }
+  }
+
+  memcpy(winmm_last_state, new_state, sizeof(winmm_last_state));
+  winmm_initialized = TRUE;
+
+  id = winmm_selected_id[port];
+  if (id >= 0 && id < max) {
+    state = map_winmm_device_state(id, NULL, &device_connected, NULL, NULL);
+    if (device_connected) {
+      return state;
+    }
+  }
+
+  fallback_id = -1;
+  if (connected_count == 1) {
+    fallback_id = nth_connected_winmm_device(0);
+  } else if (connected_count > 1 && port < connected_count) {
+    fallback_id = nth_connected_winmm_device(port);
+  }
+  if (fallback_id >= 0) {
+    state = map_winmm_device_state(fallback_id, NULL, &device_connected, NULL,
+                                   NULL);
+    if (device_connected) {
+      return state;
+    }
+  }
+  return 0;
+}
+
+static void winmm_port_info(int port, char *out, int outlen) {
+  int id, max, connected, count;
+  JOYCAPS caps;
+  JOYINFOEX joy;
+
+  count = connected_winmm_device_count();
+  id = winmm_selected_id[port];
+  if (id < 0) {
+    id = nth_connected_winmm_device(port);
+  }
+  if (id < 0) {
+    snprintf(out, outlen, "winmm_count=%d", count);
+    return;
+  }
+  max = (int)joyGetNumDevs();
+  if (max > YB_WINMM_MAX_DEVS) {
+    max = YB_WINMM_MAX_DEVS;
+  }
+  if (id >= max) {
+    snprintf(out, outlen, "winmm_count=%d winmm_id=%d disconnected", count,
+             id);
+    return;
+  }
+  map_winmm_device_state(id, NULL, &connected, &caps, &joy);
+  if (!connected) {
+    snprintf(out, outlen, "winmm_count=%d winmm_id=%d disconnected", count,
+             id);
+    return;
+  }
+  snprintf(out, outlen,
+           "winmm_count=%d winmm_id=%d winmm_name=\"%s\" buttons=%lu "
+           "pov=%lu x=%lu y=%lu z=%lu r=%lu u=%lu v=%lu",
+           count, id, caps.szPname, joy.dwButtons, joy.dwPOV, joy.dwXpos,
+           joy.dwYpos, joy.dwZpos, joy.dwRpos, joy.dwUpos, joy.dwVpos);
+}
+#endif
+
+#if defined(UNIX) && defined(__linux__)
+static int js_fd[2] = {-2, -2};
+static int js_buttons[2] = {0, 0};
+static int js_axis_buttons[2] = {0, 0};
+
+static void js_update_axis(int port, int axis, int value) {
+  int mask = 0;
+
+  switch (axis) {
+  case 6:
+    mask = PS2_LEFT | PS2_RIGHT;
+    if (value < -PS2_AXIS_THRESHOLD) {
+      js_axis_buttons[port] = (js_axis_buttons[port] & ~mask) | PS2_LEFT;
+    } else if (value > PS2_AXIS_THRESHOLD) {
+      js_axis_buttons[port] = (js_axis_buttons[port] & ~mask) | PS2_RIGHT;
+    } else {
+      js_axis_buttons[port] &= ~mask;
+    }
+    return;
+  case 7:
+    mask = PS2_UP | PS2_DOWN;
+    if (value < -PS2_AXIS_THRESHOLD) {
+      js_axis_buttons[port] = (js_axis_buttons[port] & ~mask) | PS2_UP;
+    } else if (value > PS2_AXIS_THRESHOLD) {
+      js_axis_buttons[port] = (js_axis_buttons[port] & ~mask) | PS2_DOWN;
+    } else {
+      js_axis_buttons[port] &= ~mask;
+    }
+    return;
+  default:
+    return;
+  }
+}
+#endif
+
+static int native_controller_state_with_sources(int port, int *analog,
+                                                int *sources) {
+  int state = 0;
+  int source_flags = 0;
+
+  if (analog) {
+    *analog = 0;
+  }
+  if (sources) {
+    *sources = 0;
+  }
+  if (port < 0 || port > 1) {
+    return 0;
+  }
+
+#ifdef WINDOWS
+  {
+    int hid_connected = FALSE;
+    int xinput_connected = FALSE;
+    int winmm_connected = FALSE;
+    int part;
+
+    part = map_hid_state(port, analog, &hid_connected);
+    state |= part;
+    if (hid_connected) {
+      source_flags |= YB_PAD_SOURCE_HID;
+    } else {
+      part = map_xinput_state(port, analog, &xinput_connected);
+      state |= part;
+      if (xinput_connected) {
+        source_flags |= YB_PAD_SOURCE_XINPUT;
+      }
+      part = map_winmm_state(port, analog, &winmm_connected);
+      state |= part;
+      if (winmm_connected) {
+        source_flags |= YB_PAD_SOURCE_WINMM;
+      }
+    }
+    if (port == 0 && !hid_connected && !xinput_connected &&
+        !winmm_connected) {
+      part = map_keyboard_state();
+      state |= part;
+      if (part) {
+        source_flags |= YB_PAD_SOURCE_KEYBOARD;
+      }
+    }
+  }
+#elif defined(__linux__)
+  if (js_fd[port] == -2) {
+    char devname[32];
+
+    sprintf(devname, "/dev/input/js%d", port);
+    js_fd[port] = open(devname, O_RDONLY | O_NONBLOCK);
+  }
+  if (js_fd[port] >= 0) {
+    struct js_event ev;
+
+    while (read(js_fd[port], &ev, sizeof(ev)) == sizeof(ev)) {
+      ev.type &= ~JS_EVENT_INIT;
+      if (ev.type == JS_EVENT_BUTTON) {
+        int bit = 0;
+        switch (ev.number) {
+        case 0:
+          bit = PS2_CROSS;
+          break;
+        case 1:
+          bit = PS2_CIRCLE;
+          break;
+        case 2:
+          bit = PS2_SQUARE;
+          break;
+        case 3:
+          bit = PS2_TRIANGLE;
+          break;
+        case 4:
+          bit = PS2_L1;
+          break;
+        case 5:
+          bit = PS2_R1;
+          break;
+        case 6:
+          bit = PS2_SELECT;
+          break;
+        case 7:
+          bit = PS2_START;
+          break;
+        case 8:
+          bit = PS2_L3;
+          break;
+        case 9:
+          bit = PS2_R3;
+          break;
+        case 10:
+          bit = PS2_L2;
+          break;
+        case 11:
+          bit = PS2_R2;
+          break;
+        default:
+          break;
+        }
+        if (bit) {
+          if (ev.value) {
+            js_buttons[port] |= bit;
+          } else {
+            js_buttons[port] &= ~bit;
+          }
+        }
+      } else if (ev.type == JS_EVENT_AXIS) {
+        js_update_axis(port, ev.number, ev.value);
+      }
+    }
+    state = js_buttons[port] | js_axis_buttons[port];
+  }
+#endif
+  if (sources) {
+    *sources = source_flags;
+  }
+  controller_last_raw_state[port] = state;
+  if (source_flags & (YB_PAD_SOURCE_XINPUT | YB_PAD_SOURCE_WINMM)) {
+    if (!controller_baseline_initialized[port]) {
+      controller_baseline_state[port] = state;
+      controller_baseline_initialized[port] = TRUE;
+    } else {
+      controller_baseline_state[port] &= state;
+    }
+    state &= ~controller_baseline_state[port];
+  }
+  return state;
+}
+
+static int native_controller_state(int port, int *analog) {
+  return native_controller_state_with_sources(port, analog, NULL);
+}
+
+int controller_port_state(int port) {
+  return native_controller_state(port, NULL);
+}
+
+char *controller_port_info(int port) {
+  int analog = 0;
+  int sources = 0;
+  int state;
+#ifdef WINDOWS
+  char winmm[700];
+  char hid[250];
+#endif
+
+  state = native_controller_state_with_sources(port, &analog, &sources);
+#ifdef WINDOWS
+  hid_port_info(port, hid, sizeof(hid));
+  winmm_port_info(port, winmm, sizeof(winmm));
+  snprintf(string, INBUFFLEN,
+           "state=%d raw=%d baseline=%d analog=%d hid=%s xinput=%s winmm=%s "
+           "keyboard=%s %s %s",
+           state, controller_last_raw_state[port],
+           controller_baseline_state[port], analog,
+           (sources & YB_PAD_SOURCE_HID) ? "yes" : "no",
+           (sources & YB_PAD_SOURCE_XINPUT) ? "yes" : "no",
+           (sources & YB_PAD_SOURCE_WINMM) ? "yes" : "no",
+           (sources & YB_PAD_SOURCE_KEYBOARD) ? "yes" : "no", hid, winmm);
+#else
+  snprintf(string, INBUFFLEN,
+           "state=%d raw=%d baseline=%d analog=%d hid=%s xinput=%s winmm=%s "
+           "keyboard=%s",
+           state, controller_last_raw_state[port],
+           controller_baseline_state[port], analog,
+           (sources & YB_PAD_SOURCE_HID) ? "yes" : "no",
+           (sources & YB_PAD_SOURCE_XINPUT) ? "yes" : "no",
+           (sources & YB_PAD_SOURCE_WINMM) ? "yes" : "no",
+           (sources & YB_PAD_SOURCE_KEYBOARD) ? "yes" : "no");
+#endif
+  return my_strdup(string);
+}
+
+static int first_controller_key(int buttons, int analog, char *retkey) {
+  struct keymap {
+    int bit;
+    char *name;
+  };
+  static struct keymap button_keys[] = {
+      {PS2_CIRCLE, "circle"},     {PS2_SQUARE, "square"},
+      {PS2_TRIANGLE, "triangle"}, {PS2_CROSS, "cross"},
+      {PS2_UP, "up"},             {PS2_DOWN, "down"},
+      {PS2_LEFT, "left"},         {PS2_RIGHT, "right"},
+      {PS2_L1, "l1"},             {PS2_L2, "l2"},
+      {PS2_R1, "r1"},             {PS2_R2, "r2"},
+      {PS2_L3, "l3"},             {PS2_R3, "r3"},
+      {PS2_START, "start"},       {PS2_SELECT, "select"},
+      {0, NULL}};
+  struct keymap *key;
+
+  (void)analog;
+  for (key = button_keys; key->name; key++) {
+    if (buttons & key->bit) {
+      strcpy(retkey, key->name);
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+int controller_inkey(char *retkey) {
+  static int last_buttons = 0;
+  static int last_analog = 0;
+  int buttons, analog;
+  int pressed_buttons, pressed_analog;
+
+  buttons = native_controller_state(0, &analog);
+  pressed_buttons = buttons & ~last_buttons;
+  pressed_analog = analog & ~last_analog;
+  last_buttons = buttons;
+  last_analog = analog;
+  return first_controller_key(pressed_buttons, pressed_analog, retkey);
+}
 
 void create_print(char type) /* create command 'print' */
 {
@@ -400,6 +1408,10 @@ char *inkey(double maxtime) /* get char from keyboard */
 
   while (((max >= 0 && left > 0) || max < 0) && !retkey[0]) {
 
+    if (controller_inkey(retkey)) {
+      break;
+    }
+
     /* already got key ? */
 #ifdef UNIX
     if (winopened && display && XPending(display)) {
@@ -427,17 +1439,21 @@ char *inkey(double maxtime) /* get char from keyboard */
     /* wait for key */
     if (max >= 0) {
 #ifdef UNIX
-      tv.tv_sec = left / 1000000;
-      tv.tv_usec = left % 1000000;
+      tv.tv_sec = (left > 20000 ? 20000 : left) / 1000000;
+      tv.tv_usec = (left > 20000 ? 20000 : left) % 1000000;
       ret = select(maxfd + 1, &readfds, NULL, NULL, &tv);
 #elif WINDOWS
-      wait_result = WaitForMultipleObjects(2, evn, FALSE, (DWORD)(left / 1000));
+      wait_result =
+          WaitForMultipleObjects(2, evn, FALSE,
+                                 (DWORD)((left > 20000 ? 20000 : left) / 1000));
 #endif
     } else {
 #ifdef UNIX
-      ret = select(maxfd + 1, &readfds, NULL, NULL, NULL);
+      tv.tv_sec = 0;
+      tv.tv_usec = 20000;
+      ret = select(maxfd + 1, &readfds, NULL, NULL, &tv);
 #elif WINDOWS
-      wait_result = WaitForMultipleObjects(2, evn, FALSE, INFINITE);
+      wait_result = WaitForMultipleObjects(2, evn, FALSE, 20);
 #endif
     }
 

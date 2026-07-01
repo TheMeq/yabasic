@@ -1723,6 +1723,10 @@ static double peek(char *dest) /* peek into internals */
     return strtod(VERSION, NULL);
   } else if (!strcmp(dest, "error")) {
     return errorcode;
+  } else if (!strcmp(dest, "port1")) {
+    return controller_port_state(0);
+  } else if (!strcmp(dest, "port2")) {
+    return controller_port_state(1);
   } else if (!strcmp(dest, "isbound")) {
     return is_bound;
   } else if (!strcmp(dest, "last_foreign_function_call_okay") ||
@@ -1829,6 +1833,10 @@ static char *peek2(char *dest, struct command *curr) /* peek into internals */
 #else
     return my_strdup("windows");
 #endif
+  } else if (!strcmp(dest, "port1")) {
+    return controller_port_info(0);
+  } else if (!strcmp(dest, "port2")) {
+    return controller_port_info(1);
   } else if (!strcmp(dest, "font")) {
     return my_strdup(fontname);
   } else if (!strcmp(dest, "last_foreign_function_call_error_text") ||

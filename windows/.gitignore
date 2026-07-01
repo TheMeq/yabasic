@@ -26,6 +26,7 @@ lang/libffi.lib
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
+lang/ReleasePerf/
 [Rr]eleases/
 x64/
 x86/
