@@ -195,7 +195,10 @@ void collect_missing_clauses(char *string, char exclude) {
 %nonassoc UMINUS
 %left tPOW
 
-/* Append compatibility tokens after UMINUS to preserve existing token IDs. */
+/* Preserve the internal IDs of literals otherwise first seen in the grammar. */
+%token ';' ',' '(' ')' '#'
+
+/* Append compatibility tokens after all original terminals. */
 %token tGTRIANGLE tSETRGB tSETDRAWBUF tSETDISPBUF
 
 %%
