@@ -373,13 +373,15 @@ enum cmd_type {
     cSEEK, cSEEK2, cTESTEOF, cWAIT, cBELL, cMOVE,
     cCLEARSCR, cCOLOUR, cCHKPROMPT, cERROR,
 
-    cOPENWIN, cDOT, cLINE, cCIRCLE, cTRIANGLE, cGTRIANGLE, cTEXT1, cTEXT2, cTEXT3, cCLOSEWIN, cCLEARWIN,	/* grafics */
+    cOPENWIN, cDOT, cLINE, cCIRCLE, cTRIANGLE, cTEXT1, cTEXT2, cTEXT3, cCLOSEWIN, cCLEARWIN,	/* grafics */
     cOPENPRN, cCLOSEPRN, cMOVEORIGIN, cRECT, cGCOLOUR, cGCOLOUR2,
-    cGBACKCOLOUR, cGBACKCOLOUR2, cSETRGB, cSETDRAWBUF, cSETDISPBUF, cPUTBIT, cPUTCHAR,
+    cGBACKCOLOUR, cGBACKCOLOUR2, cPUTBIT, cPUTCHAR,
 
     cFRNBF_SET_NUMBER, cFRNBF_SET_STRING, cFRNBF_FREE,    /* foreign libraries */
     cFRNBF_SET_BUFFER,
     
+    cGTRIANGLE, cSETRGB, cSETDRAWBUF, cSETDISPBUF, /* PS2 compatibility */
+
     cLAST_COMMAND			/* no command, just marks end of list */
 };
 
@@ -568,7 +570,6 @@ void pop_stream (void);
 void mymove (void);
 void clearscreen (void);
 char *inkey (double);
-int controller_port_state (int);
 int controller_inkey (char *);
 char *replace_escapes (char *);
 int count_backslashes(char *);

@@ -1,0 +1,52 @@
+# Run in a hidden Windows process with a timeout to check window startup too.
+open window 64,64
+setrgb 0,0,0,0
+setrgb 1,255,0,0
+setrgb 2,0,255,0
+setrgb 3,0,0,255
+setdrawbuf 0
+clear window
+if getbit$(0,0 to 0,0)<>"rgb 1,1:000000" error "background colour incorrect"
+
+gtriangle 2,2 to 60,2 to 30,60
+a$=getbit$(0,0 to 63,63)
+p$=getbit$(30,20 to 30,20)
+if dec(mid$(p$,9,2))<30 error "gradient missing red"
+if dec(mid$(p$,11,2))<30 error "gradient missing green"
+if dec(mid$(p$,13,2))<30 error "gradient missing blue"
+if getbit$(0,0 to 0,0)<>"rgb 1,1:000000" error "triangle painted outside its bounds"
+
+setdrawbuf 1
+clear window
+if a$=getbit$(0,0 to 63,63) error "draw buffers are not independent"
+gtraingle 2,2 to 60,2 to 30,60
+if a$<>getbit$(0,0 to 63,63) error "triangle alias differs"
+setdispbuf 1
+setdrawbuf 0
+if a$<>getbit$(0,0 to 63,63) error "buffer switch lost image"
+setdispbuf 0
+
+# Colour slots clamp to byte values and update ordinary drawing commands.
+setrgb 0,-10,300,42
+clear window
+if getbit$(0,0 to 0,0)<>"rgb 1,1:00ff2a" error "background clamping incorrect"
+setrgb 1,300,-10,42
+dot 10,10
+if getbit$(10,10 to 10,10)<>"rgb 1,1:ff002a" error "foreground clamping incorrect"
+
+# Exercise clipped and degenerate triangles without affecting the other buffer.
+setrgb 0,0,0,0
+clear window
+gtriangle -100,-100 to 100,-100 to 30,100
+if getbit$(30,20 to 30,20)="rgb 1,1:000000" error "clipped triangle missing"
+clear window
+b$=getbit$(0,0 to 63,63)
+gtriangle 10,10 to 10,10 to 10,10
+gtriangle -100,-100 to -50,-100 to -75,-50
+if b$<>getbit$(0,0 to 63,63) error "empty triangle changed buffer"
+setdrawbuf 1
+if a$<>getbit$(0,0 to 63,63) error "drawing changed the other buffer"
+
+close window
+print "PS2 graphics checks passed"
+exit 0

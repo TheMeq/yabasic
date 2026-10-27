@@ -88,7 +88,7 @@ void reorder_stack_after_call(
                          and remove switch value (if any) */
 {
   struct stackentry *keep, *kept;
-  char *kept_pointer = NULL;
+  char *kept_string = NULL;
   double kept_value = 0;
   int kept_type = 0;
 
@@ -97,7 +97,7 @@ void reorder_stack_after_call(
     kept_type = keep->type;
     if (keep->type == stSTRING || keep->type == stSTRINGARRAYREF ||
         keep->type == stNUMBERARRAYREF) {
-      kept_pointer = my_strdup((char *)keep->pointer);
+      kept_string = my_strdup((char *)keep->pointer);
     } else if (keep->type == stNUMBER) {
       kept_value = keep->value;
     } else {
@@ -115,7 +115,7 @@ void reorder_stack_after_call(
     kept = push();
     if (kept_type == stSTRING || kept_type == stSTRINGARRAYREF ||
         kept_type == stNUMBERARRAYREF) {
-      kept->pointer = kept_pointer;
+      kept->pointer = kept_string;
     } else {
       kept->value = kept_value;
     }

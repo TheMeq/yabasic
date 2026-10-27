@@ -474,7 +474,6 @@ LRESULT CALLBACK mywindowproc(HWND handle, unsigned msg, UINT wparam,
              ps.rcPaint.top, SRCCOPY);
       EndPaint(handle, &ps);
       ReleaseMutex(drawmutex);
-      SetEvent(wtevent);
     }
     return 0;
   case WM_LBUTTONDOWN:
@@ -731,6 +730,9 @@ static DWORD winthread(LPWORD par) {
   }
   bitcon = bitcons[drawbuf];
   ReleaseDC(window, devcon);
+
+  /* Hidden windows may never paint; signal only after both buffers are ready. */
+  SetEvent(wtevent);
 
   /* get and dispatch messages */
   while (GetMessage((LPMSG)&msg, NULL, 0, 0)) {

@@ -162,8 +162,7 @@ void collect_missing_clauses(char *string, char exclude) {
 %token tNEQ tLEQ tGEQ tLTN tGTN tEQU tEQU2 tPOW
 %token tREAD tDATA tRESTORE
 %token tOPEN tCLOSE tSEEK tTELL tAS tREADING tWRITING tORIGIN
-%token tWINDOW tDOT tLINE tCIRCLE tTRIANGLE tGTRIANGLE tTEXT tCLEAR tFILL tPRINTER
-%token tSETRGB tSETDRAWBUF tSETDISPBUF
+%token tWINDOW tDOT tLINE tCIRCLE tTRIANGLE tTEXT tCLEAR tFILL tPRINTER
 %token tWAIT tBELL tLET tARDIM tARSIZE tBIND
 %token tRECT tGETBIT tPUTBIT tGETCHAR tPUTCHAR tNEW tCURVE
 
@@ -195,6 +194,9 @@ void collect_missing_clauses(char *string, char exclude) {
 %left '*' '/'
 %nonassoc UMINUS
 %left tPOW
+
+/* Append compatibility tokens after UMINUS to preserve existing token IDs. */
+%token tGTRIANGLE tSETRGB tSETDRAWBUF tSETDISPBUF
 
 %%
 
@@ -261,9 +263,6 @@ statement:  /* empty */
   | tCOLOUR string_expression {add_command(cGCOLOUR2);}
   | tBACKCOLOUR expression ',' expression ',' expression {add_command(cGBACKCOLOUR);}
   | tBACKCOLOUR string_expression {add_command(cGBACKCOLOUR2);}
-  | tSETRGB expression ',' expression ',' expression ',' expression {add_command(cSETRGB);}
-  | tSETDRAWBUF expression {add_command(cSETDRAWBUF);}
-  | tSETDISPBUF expression {add_command(cSETDISPBUF);}
   | tREAD readlist
   | tDATA datalist
   | tRESTORE {create_restore("");}
@@ -298,7 +297,6 @@ statement:  /* empty */
   | tCLOSE tCURVE {create_line(0);}
   | clear_fill_clause tCIRCLE coordinates ',' expression {add_command(cCIRCLE);putindrawmode(0);}
   | clear_fill_clause tTRIANGLE coordinates to coordinates to coordinates {add_command(cTRIANGLE);putindrawmode(0);}
-  | tGTRIANGLE coordinates to coordinates to coordinates {add_command(cGTRIANGLE);}
   | tTEXT coordinates ',' string_expression {add_command(cTEXT1);}
   | tTEXT coordinates ',' string_expression ',' string_expression {add_command(cTEXT2);}
   | tTEXT coordinates ',' string_expression ',' string_expression ',' string_expression {add_command(cTEXT3);}
@@ -463,8 +461,7 @@ arrayref: tSYMBOL '(' ')' {create_pusharrayref(dotify($1,FALSE),stNUMBERARRAYREF
   ;
 
 string_arrayref: tSTRSYM '(' ')' {create_pusharrayref(dotify($1,FALSE),stSTRINGARRAYREF);}
-  | tSYMBOL '(' ')' {char *ps2_name=ps2_string_arrayref_name($1); create_pusharrayref(dotify(ps2_name,FALSE),stSTRINGARRAYREF); my_free(ps2_name);}
-;
+  ;
 
 coordinates: expression ',' expression
   ;
@@ -869,6 +866,18 @@ goto_list: symbol_or_lineno {create_goto((function_type!=ftNONE)?dotify($1,TRUE)
 
 gosub_list: symbol_or_lineno {create_gosub((function_type!=ftNONE)?dotify($1,TRUE):$1);add_command(cFINDNOP);}
   | gosub_list ',' symbol_or_lineno {create_gosub((function_type!=ftNONE)?dotify($3,TRUE):$3);add_command(cFINDNOP);}
+  ;
+
+/* Compatibility rules follow the original grammar to preserve rule numbers. */
+statement:
+  tSETRGB expression ',' expression ',' expression ',' expression {add_command(cSETRGB);}
+  | tSETDRAWBUF expression {add_command(cSETDRAWBUF);}
+  | tSETDISPBUF expression {add_command(cSETDISPBUF);}
+  | tGTRIANGLE coordinates to coordinates to coordinates {add_command(cGTRIANGLE);}
+  ;
+
+string_arrayref:
+  tSYMBOL '(' ')' {char *ps2_name=ps2_string_arrayref_name($1); create_pusharrayref(dotify(ps2_name,FALSE),stSTRINGARRAYREF); my_free(ps2_name);}
   ;
 
 %code {

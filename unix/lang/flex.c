@@ -463,11 +463,11 @@ struct yy_trans_info
 static const flex_int16_t yy_acclist[1143] =
     {   0,
     16386,    4,    4,   14,   14,  253,  251,  252,    1,  251,
-      252,    7,  252,  238,  251,  252,  251,  252,  239,  251,
-      252,  239,  251,  252,  239,  243,  251,  252,  239,  251,
-      252,  242,  243,  251,  252,  242,  243,  251,  252,    8,
-      239,  251,  252,  236,  251,  252,  234,  251,  252,  237,
-      251,  252,   81,  251,  252,  189,  251,  252,  248,  251,
+      252,    7,  252,  233,  251,  252,  251,  252,  234,  251,
+      252,  234,  251,  252,  234,  238,  251,  252,  234,  251,
+      252,  237,  238,  251,  252,  237,  238,  251,  252,    8,
+      234,  251,  252,  231,  251,  252,  229,  251,  252,  232,
+      251,  252,   81,  251,  252,  184,  251,  252,  248,  251,
       252,  248,  251,  252,  248,  251,  252,  248,  251,  252,
       248,  251,  252,  248,  251,  252,  248,  251,  252,  248,
       251,  252,  248,  251,  252,  248,  251,  252,  248,  251,
@@ -475,119 +475,119 @@ static const flex_int16_t yy_acclist[1143] =
 
       248,  251,  252,  248,  251,  252,  248,  251,  252,  248,
       251,  252,  248,  251,  252,  248,  251,  252,  248,  251,
-      252,  248,  251,  252,  228,  251,  252,    1,  251,  252,
-    16386,  251,  252,  251,  252, 8194,  242,  243,  251,  252,
-     8194,  242,  243,  251,  252,  252,    3,  252,    4,  252,
-        5,  252,   14,  252,   15,  252,  243,  252,  242,  243,
-      252,  242,  243,  252,    1,    6,  231,  250,  250,  229,
-      243,   10,  243,  242,  243,  232,  230,  235,  233,  249,
-      248,  248,  248,  248,  248,   44,  248,  188,  248,  248,
+      252,  248,  251,  252,  223,  251,  252,    1,  251,  252,
+    16386,  251,  252,  251,  252, 8194,  237,  238,  251,  252,
+     8194,  237,  238,  251,  252,  252,    3,  252,    4,  252,
+        5,  252,   14,  252,   15,  252,  238,  252,  237,  238,
+      252,  237,  238,  252,    1,    6,  226,  250,  250,  224,
+      238,   10,  238,  237,  238,  227,  225,  230,  228,  249,
+      248,  248,  248,  248,  248,   44,  248,  183,  248,  248,
       248,  248,  248,  248,  248,  248,  248,  248,  248,  248,
 
       248,  248,  248,  248,   42,  248,  248,  248,  248,  248,
       248,  248,  248,  248,   69,  248,  248,  248,  248,  248,
       248,  248,  248,  248,   63,  248,  248,  248,  248,  248,
       248,  248,  248,  248,  248,  248,  248,  248,  248,   59,
-      248,  248,   92,  248,  248,  248,  244,  248,  248,  248,
+      248,  248,   92,  248,  248,  248,  239,  248,  248,  248,
       248,  248,  248,  248,  248,  248,  248,  248,  248,  248,
       248,  248,  248,  248,  248,  248,  248,  248,  248,  248,
       248,  248,   43,  248,  248,  248,  248,  248,  248,  248,
       248,  248,  248,  248,  248,    1,16386, 8194,   17,   18,
-     8194,  242,  243,    3,    4,   14,  243,   10,  241,  240,
+     8194,  237,  238,    3,    4,   14,  238,   10,  236,  235,
 
-      248,  154,  248,  248,   91,  248,  248,  184,  248,  248,
-      248,  248,  248,  248,  248,  248,  118,  248,  248,  248,
-      248,  248,  248,  248,  248,  248,  248,  248,  248,  141,
-      248,  248,  248,  187,  248,  248,   84,  248,   16,  248,
-      102,  248,  248,   86,  248,  174,  248,   95,  248,  248,
-      248,  248,  248,  248,  145,  248,  248,  248,  248,   36,
+      248,  149,  248,  248,   91,  248,  248,  179,  248,  248,
+      248,  248,  248,  248,  248,  248,  113,  248,  248,  248,
+      248,  248,  248,  248,  248,  248,  248,  248,  248,  136,
+      248,  248,  248,  182,  248,  248,   84,  248,   16,  248,
+      102,  248,  248,   86,  248,  169,  248,   95,  248,  248,
+      248,  248,  248,  248,  140,  248,  248,  248,  248,   36,
       248,  248,  248,  248,  248,  248,  248,  248,  248,  248,
-      248,  248,  248,  149,  248,  248,  248,  172,  248,  133,
-      248,  248,  248,  146,  248,  248,  248,  248,  159,  248,
-      248,  158,  248,  156,  248,  248,  127,  248,  248,   93,
+      248,  248,  248,  144,  248,  248,  248,  167,  248,  128,
+      248,  248,  248,  141,  248,  248,  248,  248,  154,  248,
+      248,  153,  248,  151,  248,  248,  122,  248,  248,   93,
 
-      248,  248,  248,  248,  248,  248,  248,  248,  248,  157,
+      248,  248,  248,  248,  248,  248,  248,  248,  248,  152,
       248,  248,  248,  248,   12,  248,  248,  248,  248,  248,
       248,  248,  248,  248,  248,  248,  248,  248,   97,  248,
-       98,  248,  155,  248,  139,  248,  248,  248,  148,  248,
-      248,  248,  248,   55,  248,  248,  248,  143,  248,  248,
-      248,  248,  248,  248,  248,  248,  248,  248,  248,  173,
-      248,  248,  248,  248,  248,  248,   96,  248,  248,  142,
-      248,  248,  140,  248,  144,  248,  248,  132,  248,  131,
-      248,  186,  249,  138,  248,  248,  248,  248,   39,  248,
-      150,  248,  248,  183,  249,  248,  248,  248,  248,  248,
+       98,  248,  150,  248,  134,  248,  248,  248,  143,  248,
+      248,  248,  248,   55,  248,  248,  248,  138,  248,  248,
+      248,  248,  248,  248,  248,  248,  248,  248,  248,  168,
+      248,  248,  248,  248,  248,  248,   96,  248,  248,  137,
+      248,  248,  135,  248,  139,  248,  248,  127,  248,  126,
+      248,  181,  249,  133,  248,  248,  248,  248,   39,  248,
+      145,  248,  248,  178,  249,  248,  248,  248,  248,  248,
 
       248,  248,   89,  248,  248,  248,   16,   16,  248,   65,
       248,  248,  248,  248,  248,   22,  248,  248,   87,  248,
-      248,  248,  110,  248,  248,  248,  153,  248,  248,  248,
-      248,  248,  227,  248,  248,   53,  248,  248,  248,  185,
+      248,  248,  108,  248,  248,  248,  148,  248,  248,  248,
+      248,  248,  222,  248,  248,   53,  248,  248,  248,  180,
       249,  248,  248,  248,  248,  248,  248,  248,  103,  248,
-      248,   41,  248,  248,  248,  162,  249,  248,   48,  248,
-      248,   70,  248,  248,  248,  195,  248,  197,  248,  248,
-      248,  248,   88,  248,  117,  248,  248,    9,   11,  248,
+      248,   41,  248,  248,  248,  157,  249,  248,   48,  248,
+      248,   70,  248,  248,  248,  190,  248,  192,  248,  248,
+      248,  248,   88,  248,  112,  248,  248,    9,   11,  248,
       248,  248,  248,  248,  248,  248,  248,  248,  248,   72,
-      248,  248,  248,  248,  248,  147,  248,  248,   47,  248,
+      248,  248,  248,  248,  248,  142,  248,  248,   47,  248,
 
-      175,  249,  248,  248,  248,  248,   73,  248,  112,  248,
-       64,  248,  248,  248,  248,  248,  246,  248,  248,  248,
-      248,  128,  248,   50,  248,  248,  248,  248,  248,  248,
-      248,  248,   37,  248,  248,  248,  109,  248,   71,  248,
-       77,  248,  248,  248,  248,  104,  248,  193,  249,  248,
+      170,  249,  248,  248,  248,  248,   73,  248,  110,  248,
+       64,  248,  248,  248,  248,  248,  241,  248,  248,  248,
+      248,  123,  248,   50,  248,  248,  248,  248,  248,  248,
+      248,  248,   37,  248,  248,  248,  107,  248,   71,  248,
+       77,  248,  248,  248,  248,  104,  248,  188,  249,  248,
        16,   16,  248,  248,   66,  248,   68,  248,   35,  248,
-      245,  248,   23,  249,  248,  248,  247,  248,  248,  151,
+      240,  248,   23,  249,  248,  248,  242,  248,  248,  146,
       248,  248,  248,  248,  248,  248,   54,  248,  248,  248,
-      248,  248,   82,  248,  169,  248,  248,   62,  248,  160,
-      249,   57,  248,  248,  248,  248,  248,  248,  129,  248,
+      248,  248,   82,  248,  164,  248,  248,   62,  248,  155,
+      249,   57,  248,  248,  248,  248,  248,  248,  124,  248,
 
-      196,  249,   74,  248,  248,  248,  248,  248,   85,  248,
-        9,    9,  248,  248,  248,  248,  248,  248,  152,  248,
-      248,  248,  248,  248,  248,  248,  130,  248,  225,  248,
-      248,  248,  248,  248,  248,  194,  249,  223,  248,  248,
-      167,  249,   52,  248,  248,   75,  248,   49,  248,  248,
-      248,  248,  248,  248,  248,  120,  248,   94,  248,  171,
+      191,  249,   74,  248,  248,  248,  248,  248,   85,  248,
+        9,    9,  248,  248,  248,  248,  248,  248,  147,  248,
+      248,  248,  248,  248,  248,  248,  125,  248,  220,  248,
+      248,  248,  248,  248,  248,  189,  249,  218,  248,  248,
+      162,  249,   52,  248,  248,   75,  248,   49,  248,  248,
+      248,  248,  248,  248,  248,  115,  248,   94,  248,  166,
       249,  105,  248,   78,  248,  248,  248,  248,  248,   67,
-      248,   26,   27,  248,   34,  248,  111,  248,  248,  248,
-      248,  248,  248,  248,  248,  248,  176,  249,  248,  163,
-      249,  165,  249,  179,  248,  248,  177,  248,  178,  248,
+      248,   26,   27,  248,   34,  248,  109,  248,  248,  248,
+      248,  248,  248,  248,  248,  248,  171,  249,  248,  158,
+      249,  160,  249,  174,  248,  248,  172,  248,  173,  248,
 
-      248,  100,  248,  248,  121,  248,  248,  248,  248,   51,
-      248,  248,   83,  248,  248,  161,  249,  170,  248,  166,
-      249,  248,  190,  248,  248,  248,  113,  248,  226,  249,
-       58,  248,  248,  248,   38,  248,  191,  248,  224,  249,
-      248,  164,  249,   99,  248,  248,  248,  248,  248,  119,
-      248,  122,  249,   21,  248,  248,   40,  248,  248,   25,
+      248,  100,  248,  248,  116,  248,  248,  248,  248,   51,
+      248,  248,   83,  248,  248,  156,  249,  165,  248,  161,
+      249,  248,  185,  248,  248,  248,  245,  248,  221,  249,
+       58,  248,  248,  248,   38,  248,  186,  248,  219,  249,
+      248,  159,  249,   99,  248,  248,  248,  248,  248,  114,
+      248,  117,  249,   21,  248,  248,   40,  248,  248,   25,
        19,  248,  248,  248,  248,  248,  248,  248,  248,  248,
-      124,  249,  248,  248,  248,  248,  248,  248,  248,  101,
+      119,  249,  248,  248,  248,  248,  248,  248,  248,  101,
       248,  248,   45,  248,  248,   90,  248,   76,  248,  248,
-      248,  248,  168,  249,  248,  192,  249,  248,   46,  248,
+      248,  248,  163,  249,  248,  187,  249,  248,   46,  248,
 
-      134,  248,  248,  248,  123,  249,   61,  248,  248,   20,
+      129,  248,  248,  248,  118,  249,   61,  248,  248,   20,
       249,  248,  248,  248,  248,  248,  248,  248,  248,  248,
-      248,  248,  248,   13,  248,  248,  181,  248,  137,  248,
-      248,  248,  248,  248,  248,  248,  106,  248,  248,  136,
+      248,  248,  248,   13,  248,  248,  176,  248,  132,  248,
+      248,  248,  248,  248,  248,  248,  106,  248,  248,  131,
       248,   79,  248,  248,  248,   28,   29,  248,  248,  248,
-      248,  248,  205,  248,  211,  248,  248,  248,  248,  248,
-      108,  248,  107,  248,   13,   60,  248,  248,  248,  137,
-      248,  125,  248,  116,  248,  248,  248,  248,  248,  248,
-       80,  248,  248,   30,   31,  248,  248,  248,  248,  222,
-      248,  207,  249,  248,  248,  220,  248,  199,  248,  203,
+      248,  248,  200,  248,  206,  248,  248,  248,  248,  248,
+      244,  248,  243,  248,   13,   60,  248,  248,  248,  132,
+      248,  120,  248,  111,  248,  248,  248,  248,  248,  248,
+       80,  248,  248,   30,   31,  248,  248,  248,  248,  217,
+      248,  202,  249,  248,  248,  215,  248,  194,  248,  198,
 
-      248,  126,  249,   13,  248,  248,  137,  248,  115,  248,
-      114,  248,   56,  248,  248,  248,   32,   33,  248,  248,
-      248,  218,  249,  248,  248,  201,  249,   13,  180,  248,
-      248,  248,  248,  248,  248,  248,  216,  249,  248,  248,
-      248,  248,  248,   16,  248,  248,  248,  248,  248,  182,
-      248,  248,  135,  248,  248,  248,  248,  248,  248,  248,
+      248,  121,  249,   13,  248,  248,  132,  248,  247,  248,
+      246,  248,   56,  248,  248,  248,   32,   33,  248,  248,
+      248,  213,  249,  248,  248,  196,  249,   13,  175,  248,
+      248,  248,  248,  248,  248,  248,  211,  249,  248,  248,
+      248,  248,  248,   16,  248,  248,  248,  248,  248,  177,
+      248,  248,  130,  248,  248,  248,  248,  248,  248,  248,
       248,  248,  248,  248,  248,  248,  248,  248,  248,  248,
-      248,  213,  248,  248,  248,  248,  248,  248,  248,  248,
-      248,  209,  249,  248,  248,  248,  248,  204,  248,  210,
-      248,  248,  248,  248,  248,  248,  248,  221,  248,  206,
+      248,  208,  248,  248,  248,  248,  248,  248,  248,  248,
+      248,  204,  249,  248,  248,  248,  248,  199,  248,  205,
+      248,  248,  248,  248,  248,  248,  248,  216,  248,  201,
 
-      249,  248,  248,  219,  248,  248,  248,   24,  248,  248,
-      217,  249,  248,  248,  248,  248,  215,  249,  248,  248,
-      248,  198,  248,  202,  248,  248,  248,  248,  200,  249,
-      248,  248,  248,  214,  249,  248,  248,  248,  212,  248,
-      208,  249
+      249,  248,  248,  214,  248,  248,  248,   24,  248,  248,
+      212,  249,  248,  248,  248,  248,  210,  249,  248,  248,
+      248,  193,  248,  197,  248,  248,  248,  248,  195,  249,
+      248,  248,  248,  209,  249,  248,  248,  248,  207,  248,
+      203,  249
     } ;
 
 static const flex_int16_t yy_accept[871] =
@@ -1797,7 +1797,7 @@ static const flex_int16_t yy_rule_linenum[252] =
       230,  231,  232,  233,  234,  235,  236,  237,  238,  239,
       240,  241,  242,  243,  244,  245,  246,  247,  248,  249,
       250,  251,  252,  253,  254,  255,  256,  257,  258,  259,
-      260,  261,  262,  263,  264,  265,  266,  267,  269,  270,
+      260,  261,  262,  264,  265,  266,  267,  268,  269,  270,
       271,  272,  273,  274,  275,  276,  277,  278,  279,  280,
       281,  282,  283,  284,  285,  286,  287,  288,  289,  290,
       291,  292,  293,  294,  295,  296,  297,  298,  299,  300,
@@ -1807,10 +1807,10 @@ static const flex_int16_t yy_rule_linenum[252] =
 
       331,  332,  333,  334,  335,  336,  337,  338,  339,  340,
       341,  342,  343,  344,  345,  346,  347,  348,  349,  350,
-      351,  352,  353,  354,  355,  356,  357,  358,  359,  361,
-      362,  363,  364,  365,  366,  367,  368,  369,  371,  373,
-      379,  385,  391,  400,  401,  402,  403,  405,  410,  415,
-      432
+      351,  352,  353,  354,  356,  357,  358,  359,  360,  361,
+      362,  363,  364,  366,  368,  374,  380,  386,  395,  396,
+      397,  398,  401,  402,  403,  404,  405,  407,  412,  417,
+      434
     } ;
 
 static yy_state_type *yy_state_buf=0, *yy_state_ptr=0;
@@ -2792,537 +2792,517 @@ return tTRIANGLE;
 	YY_BREAK
 case 107:
 YY_RULE_SETUP
-return tGTRIANGLE;
+return tCLEAR;
 	YY_BREAK
 case 108:
 YY_RULE_SETUP
-return tGTRIANGLE;
+return tFILL;
 	YY_BREAK
 case 109:
 YY_RULE_SETUP
-return tCLEAR;
+return tFILL;
 	YY_BREAK
 case 110:
 YY_RULE_SETUP
-return tFILL;
+return tTEXT;
 	YY_BREAK
 case 111:
 YY_RULE_SETUP
-return tFILL;
+return tRECT;
 	YY_BREAK
 case 112:
 YY_RULE_SETUP
-return tTEXT;
+return tRECT;
 	YY_BREAK
 case 113:
 YY_RULE_SETUP
-return tSETRGB;
+return tRECT;
 	YY_BREAK
 case 114:
 YY_RULE_SETUP
-return tSETDRAWBUF;
+return tPUTBIT;
 	YY_BREAK
 case 115:
 YY_RULE_SETUP
-return tSETDISPBUF;
+return tPUTBIT;
 	YY_BREAK
 case 116:
 YY_RULE_SETUP
-return tRECT;
+return tPUTBIT;
 	YY_BREAK
 case 117:
 YY_RULE_SETUP
-return tRECT;
+return tGETBIT;
 	YY_BREAK
 case 118:
 YY_RULE_SETUP
-return tRECT;
+return tGETBIT;
 	YY_BREAK
 case 119:
 YY_RULE_SETUP
-return tPUTBIT;
+return tGETBIT;
 	YY_BREAK
 case 120:
 YY_RULE_SETUP
-return tPUTBIT;
+return tPUTCHAR;
 	YY_BREAK
 case 121:
 YY_RULE_SETUP
-return tPUTBIT;
+return tGETCHAR;
 	YY_BREAK
 case 122:
 YY_RULE_SETUP
-return tGETBIT;
+return tNEW;
 	YY_BREAK
 case 123:
 YY_RULE_SETUP
-return tGETBIT;
+return tWAIT;
 	YY_BREAK
 case 124:
 YY_RULE_SETUP
-return tGETBIT;
+return tWAIT;
 	YY_BREAK
 case 125:
 YY_RULE_SETUP
-return tPUTCHAR;
+return tWAIT;
 	YY_BREAK
 case 126:
 YY_RULE_SETUP
-return tGETCHAR;
+return tBELL;
 	YY_BREAK
 case 127:
 YY_RULE_SETUP
-return tNEW;
+return tBELL;
 	YY_BREAK
 case 128:
 YY_RULE_SETUP
-return tWAIT;
+return tLET;
 	YY_BREAK
 case 129:
 YY_RULE_SETUP
-return tWAIT;
+return tARDIM;
 	YY_BREAK
 case 130:
 YY_RULE_SETUP
-return tWAIT;
+return tARDIM;
 	YY_BREAK
 case 131:
 YY_RULE_SETUP
-return tBELL;
+return tARSIZE;
 	YY_BREAK
 case 132:
 YY_RULE_SETUP
-return tBELL;
+{yylval.symbol=(char *)my_strdup("numparams"); return tSYMBOL;}
 	YY_BREAK
 case 133:
 YY_RULE_SETUP
-return tLET;
+return tBIND;
 	YY_BREAK
 case 134:
 YY_RULE_SETUP
-return tARDIM;
+return tSIN;
 	YY_BREAK
 case 135:
 YY_RULE_SETUP
-return tARDIM;
+return tASIN;
 	YY_BREAK
 case 136:
 YY_RULE_SETUP
-return tARSIZE;
+return tCOS;
 	YY_BREAK
 case 137:
 YY_RULE_SETUP
-{yylval.symbol=(char *)my_strdup("numparams"); return tSYMBOL;}
+return tACOS;
 	YY_BREAK
 case 138:
 YY_RULE_SETUP
-return tBIND;
+return tTAN;
 	YY_BREAK
 case 139:
 YY_RULE_SETUP
-return tSIN;
+return tATAN;
 	YY_BREAK
 case 140:
 YY_RULE_SETUP
-return tASIN;
+return tEXP;
 	YY_BREAK
 case 141:
 YY_RULE_SETUP
-return tCOS;
+return tLOG;
 	YY_BREAK
 case 142:
 YY_RULE_SETUP
-return tACOS;
+return tSQRT;
 	YY_BREAK
 case 143:
 YY_RULE_SETUP
-return tTAN;
+return tSQR;
 	YY_BREAK
 case 144:
 YY_RULE_SETUP
-return tATAN;
+return tINT;
 	YY_BREAK
 case 145:
 YY_RULE_SETUP
-return tEXP;
+return tCEIL;
 	YY_BREAK
 case 146:
 YY_RULE_SETUP
-return tLOG;
+return tFLOOR;
 	YY_BREAK
 case 147:
 YY_RULE_SETUP
-return tSQRT;
+return tROUND;
 	YY_BREAK
 case 148:
 YY_RULE_SETUP
-return tSQR;
+return tFRAC;
 	YY_BREAK
 case 149:
 YY_RULE_SETUP
-return tINT;
+return tABS;
 	YY_BREAK
 case 150:
 YY_RULE_SETUP
-return tCEIL;
+return tSIG;
 	YY_BREAK
 case 151:
 YY_RULE_SETUP
-return tFLOOR;
+return tMOD;
 	YY_BREAK
 case 152:
 YY_RULE_SETUP
-return tROUND;
+return tRAN;
 	YY_BREAK
 case 153:
 YY_RULE_SETUP
-return tFRAC;
+return tMIN;
 	YY_BREAK
 case 154:
 YY_RULE_SETUP
-return tABS;
+return tMAX;
 	YY_BREAK
 case 155:
 YY_RULE_SETUP
-return tSIG;
+return tLEFT;
 	YY_BREAK
 case 156:
 YY_RULE_SETUP
-return tMOD;
+return tRIGHT;
 	YY_BREAK
 case 157:
 YY_RULE_SETUP
-return tRAN;
+return tMID;
 	YY_BREAK
 case 158:
 YY_RULE_SETUP
-return tMIN;
+return tLOWER;
 	YY_BREAK
 case 159:
 YY_RULE_SETUP
-return tMAX;
+return tUPPER;
 	YY_BREAK
 case 160:
 YY_RULE_SETUP
-return tLEFT;
+return tLTRIM;
 	YY_BREAK
 case 161:
 YY_RULE_SETUP
-return tRIGHT;
+return tRTRIM;
 	YY_BREAK
 case 162:
 YY_RULE_SETUP
-return tMID;
+return tTRIM;
 	YY_BREAK
 case 163:
 YY_RULE_SETUP
-return tLOWER;
+return tSTRING2;
 	YY_BREAK
 case 164:
 YY_RULE_SETUP
-return tUPPER;
+return tINSTR;
 	YY_BREAK
 case 165:
 YY_RULE_SETUP
-return tLTRIM;
+return tRINSTR;
 	YY_BREAK
 case 166:
 YY_RULE_SETUP
-return tRTRIM;
+return tCHOMP;
 	YY_BREAK
 case 167:
 YY_RULE_SETUP
-return tTRIM;
+return tLEN;
 	YY_BREAK
 case 168:
 YY_RULE_SETUP
-return tSTRING2;
+return tVAL;
 	YY_BREAK
 case 169:
 YY_RULE_SETUP
-return tINSTR;
+return tMYEOF;
 	YY_BREAK
 case 170:
 YY_RULE_SETUP
-return tRINSTR;
+return tSTR;
 	YY_BREAK
 case 171:
 YY_RULE_SETUP
-return tCHOMP;
+return tINKEY;
 	YY_BREAK
 case 172:
 YY_RULE_SETUP
-return tLEN;
+return tMOUSEX;
 	YY_BREAK
 case 173:
 YY_RULE_SETUP
-return tVAL;
+return tMOUSEY;
 	YY_BREAK
 case 174:
 YY_RULE_SETUP
-return tMYEOF;
+return tMOUSEB;
 	YY_BREAK
 case 175:
 YY_RULE_SETUP
-return tSTR;
+return tMOUSEB;
 	YY_BREAK
 case 176:
 YY_RULE_SETUP
-return tINKEY;
+return tMOUSEMOD;
 	YY_BREAK
 case 177:
 YY_RULE_SETUP
-return tMOUSEX;
+return tMOUSEMOD;
 	YY_BREAK
 case 178:
 YY_RULE_SETUP
-return tMOUSEY;
+return tCHR;
 	YY_BREAK
 case 179:
 YY_RULE_SETUP
-return tMOUSEB;
+return tASC;
 	YY_BREAK
 case 180:
 YY_RULE_SETUP
-return tMOUSEB;
+return tHEX;
 	YY_BREAK
 case 181:
 YY_RULE_SETUP
-return tMOUSEMOD;
+return tBIN;
 	YY_BREAK
 case 182:
 YY_RULE_SETUP
-return tMOUSEMOD;
+return tDEC;
 	YY_BREAK
 case 183:
 YY_RULE_SETUP
-return tCHR;
+return tAT;
 	YY_BREAK
 case 184:
 YY_RULE_SETUP
-return tASC;
+return tAT;
 	YY_BREAK
 case 185:
 YY_RULE_SETUP
-return tHEX;
+return tSCREEN;
 	YY_BREAK
 case 186:
 YY_RULE_SETUP
-return tBIN;
+return tSYSTEM;
 	YY_BREAK
 case 187:
 YY_RULE_SETUP
-return tDEC;
+return tSYSTEM2;
 	YY_BREAK
 case 188:
 YY_RULE_SETUP
-return tAT;
+return tDATE;
 	YY_BREAK
 case 189:
 YY_RULE_SETUP
-return tAT;
+return tTIME;
 	YY_BREAK
 case 190:
 YY_RULE_SETUP
-return tSCREEN;
+return tPEEK;
 	YY_BREAK
 case 191:
 YY_RULE_SETUP
-return tSYSTEM;
+return tPEEK2;
 	YY_BREAK
 case 192:
 YY_RULE_SETUP
-return tSYSTEM2;
+return tPOKE;
 	YY_BREAK
 case 193:
 YY_RULE_SETUP
-return tDATE;
+return tFRNFN_CALL;
 	YY_BREAK
 case 194:
 YY_RULE_SETUP
-return tTIME;
+return tFRNFN_CALL;
 	YY_BREAK
 case 195:
 YY_RULE_SETUP
-return tPEEK;
+return tFRNFN_CALL2;
 	YY_BREAK
 case 196:
 YY_RULE_SETUP
-return tPEEK2;
+return tFRNFN_CALL2;
 	YY_BREAK
 case 197:
 YY_RULE_SETUP
-return tPOKE;
+return tFRNFN_SIZE;
 	YY_BREAK
 case 198:
 YY_RULE_SETUP
-return tFRNFN_CALL;
+return tFRNFN_SIZE;
 	YY_BREAK
 case 199:
 YY_RULE_SETUP
-return tFRNFN_CALL;
+return tFRNBF_GET;
 	YY_BREAK
 case 200:
 YY_RULE_SETUP
-return tFRNFN_CALL2;
+return tFRNBF_GET;
 	YY_BREAK
 case 201:
 YY_RULE_SETUP
-return tFRNFN_CALL2;
+return tFRNBF_GET2;
 	YY_BREAK
 case 202:
 YY_RULE_SETUP
-return tFRNFN_SIZE;
+return tFRNBF_GET2;
 	YY_BREAK
 case 203:
 YY_RULE_SETUP
-return tFRNFN_SIZE;
+return tFRNBF_GET_BUFFER;
 	YY_BREAK
 case 204:
 YY_RULE_SETUP
-return tFRNBF_GET;
+return tFRNBF_GET_BUFFER;
 	YY_BREAK
 case 205:
 YY_RULE_SETUP
-return tFRNBF_GET;
+return tFRNBF_SET;
 	YY_BREAK
 case 206:
 YY_RULE_SETUP
-return tFRNBF_GET2;
+return tFRNBF_SET;
 	YY_BREAK
 case 207:
 YY_RULE_SETUP
-return tFRNBF_GET2;
+return tFRNBF_SET_BUFFER;
 	YY_BREAK
 case 208:
 YY_RULE_SETUP
-return tFRNBF_GET_BUFFER;
+return tFRNBF_SET_BUFFER;
 	YY_BREAK
 case 209:
 YY_RULE_SETUP
-return tFRNBF_GET_BUFFER;
+return tFRNBF_ALLOC;
 	YY_BREAK
 case 210:
 YY_RULE_SETUP
-return tFRNBF_SET;
+return tFRNBF_ALLOC;
 	YY_BREAK
 case 211:
 YY_RULE_SETUP
-return tFRNBF_SET;
+return tFRNBF_ALLOC;
 	YY_BREAK
 case 212:
 YY_RULE_SETUP
-return tFRNBF_SET_BUFFER;
+return tFRNBF_DUMP;
 	YY_BREAK
 case 213:
 YY_RULE_SETUP
-return tFRNBF_SET_BUFFER;
+return tFRNBF_DUMP;
 	YY_BREAK
 case 214:
 YY_RULE_SETUP
-return tFRNBF_ALLOC;
+return tFRNBF_SIZE;
 	YY_BREAK
 case 215:
 YY_RULE_SETUP
-return tFRNBF_ALLOC;
+return tFRNBF_SIZE;
 	YY_BREAK
 case 216:
 YY_RULE_SETUP
-return tFRNBF_ALLOC;
+return tFRNBF_FREE;
 	YY_BREAK
 case 217:
 YY_RULE_SETUP
-return tFRNBF_DUMP;
+return tFRNBF_FREE;
 	YY_BREAK
 case 218:
 YY_RULE_SETUP
-return tFRNBF_DUMP;
+return tTOKEN;
 	YY_BREAK
 case 219:
 YY_RULE_SETUP
-return tFRNBF_SIZE;
+return tTOKENALT;
 	YY_BREAK
 case 220:
 YY_RULE_SETUP
-return tFRNBF_SIZE;
+return tSPLIT;
 	YY_BREAK
 case 221:
 YY_RULE_SETUP
-return tFRNBF_FREE;
+return tSPLITALT;
 	YY_BREAK
 case 222:
 YY_RULE_SETUP
-return tFRNBF_FREE;
+return tGLOB;
 	YY_BREAK
 case 223:
 YY_RULE_SETUP
-return tTOKEN;
+return tPOW;
 	YY_BREAK
 case 224:
 YY_RULE_SETUP
-return tTOKENALT;
+return tPOW;
 	YY_BREAK
 case 225:
 YY_RULE_SETUP
-return tSPLIT;
+return tNEQ;
 	YY_BREAK
 case 226:
 YY_RULE_SETUP
-return tSPLITALT;
+return tNEQ;
 	YY_BREAK
 case 227:
 YY_RULE_SETUP
-return tGLOB;
+return tLEQ;
 	YY_BREAK
 case 228:
 YY_RULE_SETUP
-return tPOW;
+return tGEQ;
 	YY_BREAK
 case 229:
 YY_RULE_SETUP
-return tPOW;
+return tEQU;
 	YY_BREAK
 case 230:
 YY_RULE_SETUP
-return tNEQ;
+return tEQU2;
 	YY_BREAK
 case 231:
 YY_RULE_SETUP
-return tNEQ;
+return tLTN;
 	YY_BREAK
 case 232:
 YY_RULE_SETUP
-return tLEQ;
+return tGTN;
 	YY_BREAK
 case 233:
 YY_RULE_SETUP
-return tGEQ;
+return tNOT;
 	YY_BREAK
 case 234:
 YY_RULE_SETUP
-return tEQU;
-	YY_BREAK
-case 235:
-YY_RULE_SETUP
-return tEQU2;
-	YY_BREAK
-case 236:
-YY_RULE_SETUP
-return tLTN;
-	YY_BREAK
-case 237:
-YY_RULE_SETUP
-return tGTN;
-	YY_BREAK
-case 238:
-YY_RULE_SETUP
-return tNOT;
-	YY_BREAK
-case 239:
-YY_RULE_SETUP
 {return yytext[0];}
 	YY_BREAK
-case 240:
+case 235:
 YY_RULE_SETUP
 {
   yylval.digits=(char *)my_strdup(yytext+2);
@@ -3330,7 +3310,7 @@ YY_RULE_SETUP
   return tHEXDIGITS;
 }
 	YY_BREAK
-case 241:
+case 236:
 YY_RULE_SETUP
 {
   yylval.digits=(char *)my_strdup(yytext+2);
@@ -3338,7 +3318,7 @@ YY_RULE_SETUP
   return tBINDIGITS;
 }
 	YY_BREAK
-case 242:
+case 237:
 YY_RULE_SETUP
 {
   yylval.digits=(char *)my_strdup(yytext);
@@ -3346,7 +3326,7 @@ YY_RULE_SETUP
   return tDIGITS;
 }
 	YY_BREAK
-case 243:
+case 238:
 YY_RULE_SETUP
 {
   { double d;
@@ -3357,21 +3337,42 @@ YY_RULE_SETUP
   }
 }
 	YY_BREAK
-case 244:
+case 239:
 YY_RULE_SETUP
 {yylval.fnum=3.1415926535897932;return tFNUM;}
 	YY_BREAK
-case 245:
+case 240:
 YY_RULE_SETUP
 {yylval.fnum=2.7182818284590452;return tFNUM;}
 	YY_BREAK
-case 246:
+case 241:
 YY_RULE_SETUP
 {yylval.fnum=1; return tFNUM;}
 	YY_BREAK
-case 247:
+case 242:
 YY_RULE_SETUP
 {yylval.fnum=0; return tFNUM;}
+	YY_BREAK
+/* Compatibility keywords precede the general identifier rule. */
+case 243:
+YY_RULE_SETUP
+return tGTRIANGLE;
+	YY_BREAK
+case 244:
+YY_RULE_SETUP
+return tGTRIANGLE;
+	YY_BREAK
+case 245:
+YY_RULE_SETUP
+return tSETRGB;
+	YY_BREAK
+case 246:
+YY_RULE_SETUP
+return tSETDRAWBUF;
+	YY_BREAK
+case 247:
+YY_RULE_SETUP
+return tSETDISPBUF;
 	YY_BREAK
 case 248:
 YY_RULE_SETUP

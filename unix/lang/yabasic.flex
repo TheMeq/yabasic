@@ -232,15 +232,10 @@ LINE return tLINE;
 CURVE return tCURVE;
 CIRCLE return tCIRCLE;
 TRIANGLE return tTRIANGLE;
-GTRIANGLE return tGTRIANGLE;
-GTRAINGLE return tGTRIANGLE;
 CLEAR return tCLEAR;
 FILL return tFILL;
 FILLED return tFILL;
 TEXT return tTEXT;
-SETRGB return tSETRGB;
-SETDRAWBUF return tSETDRAWBUF;
-SETDISPBUF return tSETDISPBUF;
 RECTANGLE return tRECT;
 RECT return tRECT;
 BOX return tRECT;
@@ -400,6 +395,13 @@ pi {yylval.fnum=3.1415926535897932;return tFNUM;}
 euler {yylval.fnum=2.7182818284590452;return tFNUM;}
 TRUE {yylval.fnum=1; return tFNUM;}
 FALSE {yylval.fnum=0; return tFNUM;}
+
+ /* Compatibility keywords precede the general identifier rule. */
+GTRIANGLE return tGTRIANGLE;
+GTRAINGLE return tGTRIANGLE;
+SETRGB return tSETRGB;
+SETDRAWBUF return tSETDRAWBUF;
+SETDISPBUF return tSETDISPBUF;
 
 {NAME} {
   yylval.symbol=(char *)my_strdup(yytext);
